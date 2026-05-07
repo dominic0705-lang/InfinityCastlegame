@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 無限城 - 終極三系統 x 電影級極致建模</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Microsoft JhengHei', sans-serif; }
+        
+        /* UI 視覺升級 - 電影感 */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: radial-gradient(circle, rgba(5, 2, 2, 0.85) 0%, rgba(0,0,0,0.98) 100%);
+            color: white; z-index: 10; backdrop-filter: blur(8px); transition: opacity 0.5s;
+        }
+        #instructions { 
+            text-align: center; cursor: pointer; padding: 50px 70px; 
+            border: 1px solid rgba(255, 50, 0, 0.3); border-radius: 4px; 
+            background: linear-gradient(135deg, rgba(20,3,0,0.95) 0%, rgba(5,0,0,0.95) 100%); 
+            box-shadow: 0 0 50px rgba(255,20,0,0.2), inset 0 0 20px rgba(255,50,0,0.1); 
+        }
+        #instructions h1 { 
+            font-size: 5.5rem; margin-bottom: 5px; color: #ff2211; 
+            text-shadow: 0 0 35px #ff0000, 0 0 10px #fff; letter-spacing: 20px; font-weight: 900; 
+        }
+        #instructions h3 { font-size: 1.5rem; color: #cc5544; margin-bottom: 30px; font-weight: 300; letter-spacing: 8px; }
+        #instructions p { font-size: 1.15rem; line-height: 2.2; color: #dddddd; }
+        .highlight { color: #ffbb66; font-weight: bold; text-shadow: 0 0 10px #ff6600; }
+        .warning { color: #ff2222; font-weight: bold; font-size: 1.2rem; margin-top: 25px; display: block; animation: flashWarning 2s infinite; }
+        
+        @keyframes flashWarning { 0%, 100% { opacity: 1; text-shadow: 0 0 20px #ff0000; } 50% { opacity: 0.6; text-shadow: 0 0 5px #ff0000; } }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 4px; height: 4px; background: #ffffff; border-radius: 50%; pointer-events: none; z-index: 5;
+            box-shadow: 0 0 12px 3px #ff3300; transition: transform 0.1s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+        
+        #gravity-timer {
+            position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
+            font-size: 1.4rem; color: #fff; font-weight: bold; text-shadow: 0 0 15px #ff0000, 0 0 5px #ff5500;
+            z-index: 5; background: rgba(10,0,0,0.85); padding: 10px 35px; border: 1px solid rgba(255,50,0,0.5);
+            display: none; letter-spacing: 4px; border-radius: 4px; box-shadow: 0 0 20px rgba(255,0,0,0.3);
+        }
+
+        #wave-alert {
+            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
+            font-size: 3.5rem; color: #ff1100; text-shadow: 0 0 30px #ff0000, 0 0 10px #fff;
+            font-weight: 900; letter-spacing: 15px; z-index: 5; display: none;
+            text-align: center; pointer-events: none; white-space: nowrap;
+        }
+        .pulse { animation: pulseAnim 0.3s infinite alternate; }
+        @keyframes pulseAnim { from { opacity: 0.4; transform: translateX(-50%) scale(0.95); } to { opacity: 1; transform: translateX(-50%) scale(1.05); } }
+
+        #biwa-effect {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 30; display: none;
+            justify-content: center; align-items: center;
+            background: radial-gradient(circle, rgba(150, 0, 0, 0.3) 0%, rgba(0,0,0,0) 80%); overflow: hidden;
+        }
+        .kanji-container { display: flex; gap: 50px; }
+        .kanji {
+            font-size: 14rem; color: #ff0500; text-shadow: 0 0 60px #ff0000, 0 0 20px #fff;
+            opacity: 0; transition: all 0.15s cubic-bezier(0.1, 0.9, 0.2, 1.3); font-weight: 900; margin: 0; transform-origin: center;
+        }
+        .biwa-string {
+            position: absolute; width: 100%; height: 2px; background: #fff;
+            box-shadow: 0 0 20px 2px #fff, 0 0 50px 10px #ff0000; left: 0;
+            transform: scaleY(0); transition: transform 0.05s ease-out;
+        }
+        #damage-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 25; background: rgba(255, 80, 0, 0.5);
+            opacity: 0; mix-blend-mode: overlay; transition: opacity 0.3s;
+        }
+    </style>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.136.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="ui-layer">
+        <div id="instructions">
+            <h1>無 限 城</h1>
+            <h3>INFINITY CASTLE : ULTIMATE EDITION</h3>
+            <p>點擊畫面 躍入深淵<br><br>
+            [W, A, S, D] 建築上移動 | [空白鍵] 跳躍<br>
+            <span class="highlight">【雙擊空白鍵】飛行模式：</span>開啟無重力飛行，[空白鍵] 上升 / [Shift] 下降<br>
+            <span class="highlight">【滑鼠左鍵】集中呼吸：</span>瞄準遠處表面，瞬間衝刺並重置重力錨點<br>
+            <span class="warning">系統一：百鬼夜行 | 系統二：核心交錯 | 系統三：無盡迷宮</span></p>
+        </div>
+    </div>
+    <div id="crosshair"></div>
+    <div id="gravity-timer">血鬼術・空間變換: 10.0s</div>
+    <div id="wave-alert">⚠️ 空間震動徵兆 ⚠️</div>
+    <div id="damage-overlay"></div>
+    
+    <div id="biwa-effect">
+        <div class="kanji-container">
+            <h1 class="kanji" style="transform: scale(2) rotate(-15deg);">血</h1>
+            <h1 class="kanji" style="transform: scale(2) rotate(0deg);">鬼</h1>
+            <h1 class="kanji" style="transform: scale(2) rotate(15deg);">術</h1>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- 全域預分配記憶體 ---
+        const _v1 = new THREE.Vector3();
+        const _v2 = new THREE.Vector3();
+        const _q1 = new THREE.Quaternion();
+        const _m1 = new THREE.Matrix4();
+        const _downDir = new THREE.Vector3();
+        const _worldPos = new THREE.Vector3();
+        const _s1 = new THREE.Vector3(1,1,1);
+        const _axes = [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)];
+
+        class SimpleTween {
+            constructor() { this.tweens = []; }
+            to(obj, props, duration) {
+                return new Promise(resolve => {
+                    const startProps = {};
+                    for (let k in props) {
+                        if (obj[k] && obj[k].isVector3) startProps[k] = new THREE.Vector3().copy(obj[k]);
+                        else if (obj[k] && obj[k].isQuaternion) startProps[k] = new THREE.Quaternion().copy(obj[k]);
+                        else startProps[k] = obj[k];
+                    }
+                    this.tweens.push({ obj, startProps, targetProps: props, duration, startTime: performance.now(), resolve });
+                });
+            }
+            update(time) {
+                for (let i = this.tweens.length - 1; i >= 0; i--) {
+                    const t = this.tweens[i];
+                    let progress = (time - t.startTime) / t.duration;
+                    if (progress >= 1) progress = 1;
+                    const ease = 1 - Math.pow(1 - progress, 4); 
+                    
+                    if (t.obj.isQuaternion) {
+                        t.obj.slerpQuaternions(t.startProps, t.targetProps, ease);
+                    } else if (t.obj.isVector3) {
+                        t.obj.lerpVectors(t.startProps, t.targetProps, ease);
+                    } else {
+                        for (let k in t.targetProps) t.obj[k] = t.startProps[k] + (t.targetProps[k] - t.startProps[k]) * ease;
+                    }
+                    
+                    if (progress === 1) { 
+                        t.resolve(); 
+                        this.tweens[i] = this.tweens[this.tweens.length - 1];
+                        this.tweens.pop();
+                    }
+                }
+            }
+        }
+        const tweenManager = new SimpleTween();
+
+        // --- 電影級極致材質 ---
+        const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x050201, roughness: 0.95, metalness: 0.0 }); 
+        const floorWoodMat = new THREE.MeshStandardMaterial({ color: 0x0c0402, roughness: 0.85, metalness: 0.05 });  
+        const crimsonWoodMat = new THREE.MeshStandardMaterial({ color: 0x4a0502, roughness: 0.7, metalness: 0.1 }); 
+        const shojiPaperMat = new THREE.MeshStandardMaterial({
+            color: 0xffe8cc, roughness: 1.0, emissive: 0x551100, emissiveIntensity: 1.2, transparent: true, opacity: 0.95, side: THREE.DoubleSide
+        });
+        const tatamiMat = new THREE.MeshStandardMaterial({ color: 0x1a2010, roughness: 1.0 }); 
+
+        class PlayerPhysicsController {
+            constructor(camera, scene, domElement, castleSystem) {
+                this.camera = camera;
+                this.castleSystem = castleSystem;
+                
+                this.wrapper = new THREE.Group();
+                this.wrapper.add(camera);
+                scene.add(this.wrapper);
+                
+                this.headLight = new THREE.PointLight(0xff6622, 0.5, 1200); 
+                this.camera.add(this.headLight);
+
+                this.controls = new PointerLockControls(camera, domElement);
+                this.velocity = new THREE.Vector3();
+                this.direction = new THREE.Vector3();
+                
+                this.moveForward = false; this.moveBackward = false;
+                this.moveLeft = false; this.moveRight = false;
+                this.canJump = false;
+                
+                this.speed = 280.0; 
+                this.gravity = 800.0;
+                this.jumpStrength = 320.0;
+                this.playerHeight = 18.0;
+                
+                this.isDashing = false; 
+                this.standingOnPlatform = null; 
+                this.shakeIntensity = 0;
+                this.originalCamPos = new THREE.Vector3();
+                
+                this.downRaycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0), 0, this.playerHeight + 5);
+                this.aimRaycaster = new THREE.Raycaster();
+                
+                this.uiTimer = document.getElementById('gravity-timer');
+
+                this.initEvents();
+            }
+
+            initEvents() {
+                const onKeyDown = (event) => {
+                    switch (event.code) {
+                        case 'KeyW': this.moveForward = true; break;
+                        case 'KeyA': this.moveLeft = true; break;
+                        case 'KeyS': this.moveBackward = true; break;
+                        case 'KeyD': this.moveRight = true; break;
+                        case 'Space': 
+                            const now = performance.now();
+                            if (now - this.lastSpaceTime < 300) {
+                                this.isFlying = !this.isFlying;
+                                this.velocity.set(0, 0, 0);
+                            }
+                            this.lastSpaceTime = now;
+
+                            if (this.isFlying) {
+                                this.moveUp = true;
+                            } else {
+                                if (this.canJump) { 
+                                    this.velocity.y += this.jumpStrength; 
+                                    this.canJump = false; 
+                                    this.standingOnPlatform = null; 
+                                } 
+                            }
+                            break;
+                        case 'ShiftLeft':
+                        case 'ShiftRight': this.moveDown = true; break;
+                    }
+                };
+                const onKeyUp = (event) => {
+                    switch (event.code) {
+                        case 'KeyW': this.moveForward = false; break;
+                        case 'KeyA': this.moveLeft = false; break;
+                        case 'KeyS': this.moveBackward = false; break;
+                        case 'KeyD': this.moveRight = false; break;
+                        case 'Space': this.moveUp = false; break;
+                        case 'ShiftLeft':
+                        case 'ShiftRight': this.moveDown = false; break;
+                    }
+                };
+                
+                document.addEventListener('mousedown', (event) => {
+                    if (!this.controls.isLocked || this.isDashing) return;
+                    if (event.button === 0) this.triggerPlayerDash(); 
+                });
+
+                document.addEventListener('keydown', onKeyDown);
+                document.addEventListener('keyup', onKeyUp);
+
+                const uiLayer = document.getElementById('ui-layer');
+                this.controls.addEventListener('lock', () => { 
+                    this.uiTimer.style.display = 'block'; 
+                    uiLayer.style.display = 'none'; 
+                });
+                this.controls.addEventListener('unlock', () => { 
+                    this.uiTimer.style.display = 'none'; 
+                    uiLayer.style.display = 'flex'; 
+                });
+            }
+
+            async triggerPlayerDash() {
+                this.aimRaycaster.setFromCamera({x:0, y:0}, this.camera);
+                const intersects = this.aimRaycaster.intersectObjects(this.castleSystem.getCollidables(), false);
+
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    if(hit.distance > 8000) return; 
+
+                    this.isDashing = true;
+                    this.velocity.set(0, 0, 0);
+                    this.standingOnPlatform = null;
+
+                    const crosshair = document.getElementById('crosshair');
+                    crosshair.style.transform = 'translate(-50%, -50%) scale(4)';
+                    setTimeout(() => { crosshair.style.transform = 'translate(-50%, -50%) scale(1)'; }, 100);
+
+                    let worldNormal = hit.face.normal.clone();
+                    if (hit.object.isInstancedMesh) {
+                        const instanceMatrix = new THREE.Matrix4();
+                        hit.object.getMatrixAt(hit.instanceId, instanceMatrix);
+                        const normalMatrix = new THREE.Matrix3().getNormalMatrix(instanceMatrix);
+                        worldNormal.applyMatrix3(normalMatrix).normalize();
+                    }
+                    worldNormal.transformDirection(hit.object.matrixWorld).normalize();
+
+                    const targetQuaternion = _q1.setFromUnitVectors(_v2.set(0, 1, 0), worldNormal);
+                    const targetWorldPos = _v2.copy(hit.point).add(worldNormal.multiplyScalar(this.playerHeight));
+
+                    const duration = 250; 
+                    tweenManager.to(this.wrapper.quaternion, targetQuaternion, duration);
+                    await tweenManager.to(this.wrapper.position, targetWorldPos, duration);
+                    
+                    this.camera.position.set(0, 0, 0);
+                    this.isDashing = false;
+                }
+            }
+
+            addCameraShake(intensity) {
+                this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+            }
+
+            update(delta) {
+                // 安全防墜
+                if (this.wrapper.position.y < -30000 || this.wrapper.position.length() > 40000) {
+                    this.wrapper.position.set(0, 60, 0);
+                    this.velocity.set(0, 0, 0);
+                }
+
+                if (!this.controls.isLocked) return;
+
+                if (this.shakeIntensity > 0) {
+                    this.camera.position.x = this.originalCamPos.x + (Math.random() - 0.5) * this.shakeIntensity;
+                    this.camera.position.y = this.originalCamPos.y + (Math.random() - 0.5) * this.shakeIntensity;
+                    this.camera.position.z = this.originalCamPos.z + (Math.random() - 0.5) * this.shakeIntensity;
+                    this.shakeIntensity -= delta * 15.0; 
+                    if(this.shakeIntensity < 0) this.shakeIntensity = 0;
+                } else {
+                    this.camera.position.lerp(this.originalCamPos, 0.2);
+                }
+
+                if (this.isDashing) return; 
+
+                if (this.isFlying) {
+                    this.velocity.set(0, 0, 0);
+                    this.standingOnPlatform = null;
+                    const flySpeed = this.speed * 4.5 * delta; 
+                    
+                    if (this.moveForward) this.controls.moveForward(flySpeed);
+                    if (this.moveBackward) this.controls.moveForward(-flySpeed);
+                    if (this.moveLeft) this.controls.moveRight(-flySpeed);
+                    if (this.moveRight) this.controls.moveRight(flySpeed);
+                    if (this.moveUp) this.camera.position.y += flySpeed;
+                    if (this.moveDown) this.camera.position.y -= flySpeed;
+                    return; 
+                }
+
+                // 平台繼承速度
+                if (this.standingOnPlatform && this.standingOnPlatform.velocity) {
+                    _v1.copy(this.standingOnPlatform.velocity).multiplyScalar(delta);
+                    this.wrapper.position.add(_v1);
+                }
+
+                const collidables = this.castleSystem.getCollidables();
+                this.velocity.x -= this.velocity.x * 10.0 * delta;
+                this.velocity.z -= this.velocity.z * 10.0 * delta;
+                
+                this.velocity.y -= this.gravity * delta;
+                this.velocity.y = Math.max(this.velocity.y, -4000); 
+
+                this.camera.getWorldPosition(_worldPos);
+                _downDir.set(0, -1, 0).applyQuaternion(this.wrapper.quaternion).normalize();
+                this.downRaycaster.set(_worldPos, _downDir);
+                
+                // 動態加長射線預判碰撞 (防穿模核心)
+                const fallDistanceThisFrame = Math.abs(this.velocity.y * delta);
+                this.downRaycaster.far = this.playerHeight + fallDistanceThisFrame + 100; 
+                
+                const intersectsDown = this.downRaycaster.intersectObjects(collidables, false);
+                this.canJump = false;
+                let foundPlatform = false;
+
+                if (intersectsDown.length > 0) {
+                    const hit = intersectsDown[0];
+                    if (this.velocity.y < 0 && hit.distance <= this.playerHeight + fallDistanceThisFrame) {
+                        
+                        if (this.velocity.y < -600) { 
+                            this.addCameraShake(Math.abs(this.velocity.y) / 100);
+                        }
+
+                        this.velocity.y = 0;
+                        this.canJump = true;
+                        
+                        if (hit.object.isInstancedMesh && hit.object.userData.buildingData) {
+                            // 系統一：百鬼夜行碰撞
+                            let bId = Math.floor(hit.instanceId / hit.object.userData.itemsPerBuilding);
+                            this.standingOnPlatform = hit.object.userData.buildingData[bId];
+                            foundPlatform = true;
+                        } else {
+                            // 系統二與系統三：層級群組碰撞
+                            let current = hit.object;
+                            while(current && !current.userData.velocity && current.parent) {
+                                current = current.parent;
+                            }
+                            if (current && current.userData.velocity) {
+                                this.standingOnPlatform = current.userData; 
+                                foundPlatform = true;
+                            }
+                        }
+                        
+                        _v1.copy(_downDir).multiplyScalar(-this.playerHeight);
+                        this.wrapper.position.copy(hit.point).add(_v1);
+                    }
+                }
+
+                if (!foundPlatform) this.standingOnPlatform = null; 
+
+                this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
+                this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
+                this.direction.normalize();
+
+                if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * this.speed * delta;
+                if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * this.speed * delta;
+
+                this.controls.moveRight(-this.velocity.x * delta);
+                this.controls.moveForward(-this.velocity.z * delta);
+                this.wrapper.translateY(this.velocity.y * delta);
+            }
+        }
+
+        // --- 終極無限城系統 (結合三大系統與極致建模) ---
+        class InfinityCastleSystem {
+            constructor(scene) {
+                this.scene = scene;
+                this.worldGroup = new THREE.Group();
+                this.scene.add(this.worldGroup);
+                
+                this.collidableMeshes = []; 
+                this.allBuildings = []; // System 1
+                this.dynamicCorridors = []; // System 2
+                
+                // System 3: Chunk-based physics generation
+                this.chunkSize = 350; 
+                this.activeChunks = new Map();
+                this.viewDistance = 3; 
+                this.frameId = 0;
+                
+                // 共用基礎厚實幾何體 (防穿模用)
+                this.geos = {
+                    woodBase: new THREE.BoxGeometry(1, 40, 1),
+                    tatami: new THREE.BoxGeometry(1, 10, 1),
+                    beam: new THREE.BoxGeometry(1, 1, 1),
+                    railTop: new THREE.BoxGeometry(1, 8, 8),
+                    railBot: new THREE.BoxGeometry(1, 6, 6)
+                };
+
+                // 波段狀態機 (IDLE -> RUMBLE -> DASH)
+                this.WAVE_IDLE = 0;
+                this.WAVE_RUMBLE = 1;
+                this.WAVE_DASH = 2;
+                this.waveState = this.WAVE_IDLE;
+                this.waveTimer = 10.0; 
+                this.uiAlert = document.getElementById('wave-alert');
+                this.uiSystemTimer = document.getElementById('gravity-timer');
+                this.dmgOverlay = document.getElementById('damage-overlay');
+
+                this.initDustParticles();
+                
+                // 初始化三大系統
+                this.initMassiveArchitecture(); // Sys 1: 1200 InstancedMesh 波段洗牌
+                this.initConcentratedCorridors(45); // Sys 2: 45 條精緻穿插長廊
+                // Sys 3 (Chunks) 在 update 中動態執行
+            }
+
+            getCollidables() { return this.collidableMeshes; }
+
+            // --- 極致建模模組區 (給 Sys 2 & Sys 3 使用) ---
+            buildShojiWall(width, height) {
+                const group = new THREE.Group();
+                const paperGeo = new THREE.PlaneGeometry(width, height);
+                const paper = new THREE.Mesh(paperGeo, shojiPaperMat);
+                group.add(paper);
+                this.collidableMeshes.push(paper); 
+
+                const frameT = 8.0; 
+                const fT = new THREE.Mesh(this.geos.beam, darkWoodMat); fT.scale.set(width, frameT, frameT); fT.position.y = height/2; fT.castShadow = true; fT.receiveShadow = true;
+                const fB = new THREE.Mesh(this.geos.beam, darkWoodMat); fB.scale.set(width, frameT, frameT); fB.position.y = -height/2; fB.castShadow = true; fB.receiveShadow = true;
+                const fL = new THREE.Mesh(this.geos.beam, darkWoodMat); fL.scale.set(frameT, height, frameT); fL.position.x = -width/2; fL.castShadow = true; fL.receiveShadow = true;
+                const fR = new THREE.Mesh(this.geos.beam, darkWoodMat); fR.scale.set(frameT, height, frameT); fR.position.x = width/2; fR.castShadow = true; fR.receiveShadow = true;
+                group.add(fT, fB, fL, fR);
+                return group;
+            }
+
+            buildRailing(length) {
+                const group = new THREE.Group();
+                const topRail = new THREE.Mesh(this.geos.railTop, crimsonWoodMat); 
+                topRail.scale.set(length, 1, 1); topRail.position.y = 18; topRail.castShadow = true; topRail.receiveShadow = true;
+                const bottomRail = new THREE.Mesh(this.geos.railBot, crimsonWoodMat); 
+                bottomRail.scale.set(length, 1, 1); bottomRail.position.y = 4; bottomRail.castShadow = true; bottomRail.receiveShadow = true;
+                group.add(topRail, bottomRail);
+                this.collidableMeshes.push(topRail); 
+
+                const posts = Math.floor(length / 40);
+                for(let i=0; i<=posts; i++) {
+                    const post = new THREE.Mesh(this.geos.beam, crimsonWoodMat);
+                    post.scale.set(6, 24, 6); post.position.set(-length/2 + (length/posts)*i, 9, 0);
+                    post.castShadow = true; post.receiveShadow = true;
+                    group.add(post);
+                }
+                return group;
+            }
+
+            buildTatamiFloor(width, depth) {
+                const group = new THREE.Group();
+                const woodBase = new THREE.Mesh(this.geos.woodBase, floorWoodMat); 
+                woodBase.scale.set(width, 1, depth); woodBase.receiveShadow = true;
+                group.add(woodBase);
+                this.collidableMeshes.push(woodBase); 
+
+                const tWidth = width - 24; const tDepth = depth - 24;
+                const tatami = new THREE.Mesh(this.geos.tatami, tatamiMat); 
+                tatami.scale.set(tWidth, 1, tDepth); tatami.receiveShadow = true;
+                group.add(tatami);
+                return group;
+            }
+
+            createShojiRoom(size) {
+                const group = new THREE.Group();
+                const roomHeight = 120;
+                const floor = this.buildTatamiFloor(size, size);
+                const ceiling = new THREE.Mesh(this.geos.beam, floorWoodMat);
+                ceiling.scale.set(size, 40, size); ceiling.position.y = roomHeight; ceiling.castShadow = true; ceiling.receiveShadow = true;
+                group.add(floor, ceiling);
+                this.collidableMeshes.push(ceiling);
+
+                const wallN = this.buildShojiWall(size, roomHeight); wallN.position.set(0, roomHeight/2, -size/2);
+                const wallE = this.buildShojiWall(size, roomHeight); wallE.rotation.y = Math.PI/2; wallE.position.set(size/2, roomHeight/2, 0);
+                const wallW = this.buildShojiWall(size, roomHeight); wallW.rotation.y = Math.PI/2; wallW.position.set(-size/2, roomHeight/2, 0);
+                group.add(wallN, wallE, wallW);
+                return group;
+            }
+
+            createGrandPlatform(size) {
+                const group = new THREE.Group();
+                const floor = this.buildTatamiFloor(size, size);
+                group.add(floor);
+                const railN = this.buildRailing(size); railN.position.set(0, 0, -size/2);
+                const railS = this.buildRailing(size); railS.position.set(0, 0, size/2);
+                const railE = this.buildRailing(size); railE.rotation.y = Math.PI/2; railE.position.set(size/2, 0, 0);
+                const railW = this.buildRailing(size); railW.rotation.y = Math.PI/2; railW.position.set(-size/2, 0, 0);
+                group.add(railN, railS, railE, railW);
+                return group;
+            }
+
+            createGrandStairs(size) {
+                const group = new THREE.Group();
+                const steps = 10; const stepH = size / steps; const stepD = size / steps; const width = size * 0.9;
+                for(let i=0; i<steps; i++) {
+                    const step = new THREE.Mesh(this.geos.beam, floorWoodMat);
+                    step.scale.set(width, stepH, stepD); step.position.set(0, stepH*i - size/2, stepD*i - size/2);
+                    step.castShadow = true; step.receiveShadow = true;
+                    group.add(step); this.collidableMeshes.push(step);
+                }
+                const baseLength = Math.sqrt(size*size + size*size);
+                const baseMat = new THREE.Mesh(this.geos.beam, darkWoodMat);
+                baseMat.scale.set(width, 40, baseLength); baseMat.rotation.x = -Math.PI / 4; baseMat.position.set(0, -10, 0);
+                baseMat.castShadow = true; baseMat.receiveShadow = true;
+                group.add(baseMat); this.collidableMeshes.push(baseMat);
+                return group;
+            }
+
+            // 給 System 2 (核心交錯) 用的精緻長廊
+            createLongCorridor(length) {
+                const group = new THREE.Group();
+                const width = 260; const height = 150;
+                
+                const floor = new THREE.Mesh(this.geos.beam, floorWoodMat);
+                floor.scale.set(width, 40, length); floor.position.y = -height/2; floor.castShadow = true; floor.receiveShadow = true;
+                group.add(floor); this.collidableMeshes.push(floor);
+
+                const ceiling = new THREE.Mesh(this.geos.beam, darkWoodMat);
+                ceiling.scale.set(width, 40, length); ceiling.position.y = height/2; ceiling.castShadow = true; ceiling.receiveShadow = true;
+                group.add(ceiling); this.collidableMeshes.push(ceiling);
+
+                if (Math.random() > 0.4) {
+                    const wallL = new THREE.Mesh(this.geos.beam, shojiPaperMat);
+                    wallL.scale.set(10, height, length); wallL.position.set(-width/2 + 5, 0, 0);
+                    group.add(wallL); this.collidableMeshes.push(wallL);
+                } else {
+                    const topRail = new THREE.Mesh(this.geos.beam, crimsonWoodMat);
+                    topRail.scale.set(10, 8, length); topRail.position.set(-width/2 + 5, -height/2 + 25, 0); topRail.castShadow = true; topRail.receiveShadow = true;
+                    group.add(topRail); this.collidableMeshes.push(topRail);
+                }
+
+                if (Math.random() > 0.4) {
+                    const wallR = new THREE.Mesh(this.geos.beam, shojiPaperMat);
+                    wallR.scale.set(10, height, length); wallR.position.set(width/2 - 5, 0, 0);
+                    group.add(wallR); this.collidableMeshes.push(wallR);
+                } else {
+                    const topRail = new THREE.Mesh(this.geos.beam, crimsonWoodMat);
+                    topRail.scale.set(10, 8, length); topRail.position.set(width/2 - 5, -height/2 + 25, 0); topRail.castShadow = true; topRail.receiveShadow = true;
+                    group.add(topRail); this.collidableMeshes.push(topRail);
+                }
+                return group;
+            }
+
+            // --- 系統一：百鬼夜行 (巨量波段洗牌，極限優化) ---
+            initMassiveArchitecture() {
+                const geos = {
+                    tCore: new THREE.BoxGeometry(320, 2360, 320),
+                    tPillar: new THREE.BoxGeometry(30, 2400, 30),
+                    tTrim: new THREE.BoxGeometry(380, 20, 380),
+                    tCap: new THREE.BoxGeometry(400, 40, 400),
+
+                    bxCore: new THREE.BoxGeometry(2360, 320, 320),
+                    bxPillar: new THREE.BoxGeometry(2400, 30, 30),
+                    bxTrim: new THREE.BoxGeometry(20, 380, 380),
+                    bxCap: new THREE.BoxGeometry(40, 400, 400),
+
+                    bzCore: new THREE.BoxGeometry(320, 320, 2360),
+                    bzPillar: new THREE.BoxGeometry(30, 30, 2400),
+                    bzTrim: new THREE.BoxGeometry(380, 380, 20),
+                    bzCap: new THREE.BoxGeometry(400, 400, 40)
+                };
+
+                const NUM_T = 400, NUM_BX = 400, NUM_BZ = 400;
+
+                this.IMs = {
+                    tCore: new THREE.InstancedMesh(geos.tCore, shojiPaperMat, NUM_T),
+                    tPillar: new THREE.InstancedMesh(geos.tPillar, darkWoodMat, NUM_T * 4),
+                    tTrim: new THREE.InstancedMesh(geos.tTrim, darkWoodMat, NUM_T * 11),
+                    tCap: new THREE.InstancedMesh(geos.tCap, darkWoodMat, NUM_T * 2),
+
+                    bxCore: new THREE.InstancedMesh(geos.bxCore, shojiPaperMat, NUM_BX),
+                    bxPillar: new THREE.InstancedMesh(geos.bxPillar, darkWoodMat, NUM_BX * 4),
+                    bxTrim: new THREE.InstancedMesh(geos.bxTrim, darkWoodMat, NUM_BX * 11),
+                    bxCap: new THREE.InstancedMesh(geos.bxCap, darkWoodMat, NUM_BX * 2),
+
+                    bzCore: new THREE.InstancedMesh(geos.bzCore, shojiPaperMat, NUM_BZ),
+                    bzPillar: new THREE.InstancedMesh(geos.bzPillar, darkWoodMat, NUM_BZ * 4),
+                    bzTrim: new THREE.InstancedMesh(geos.bzTrim, darkWoodMat, NUM_BZ * 11),
+                    bzCap: new THREE.InstancedMesh(geos.bzCap, darkWoodMat, NUM_BZ * 2)
+                };
+
+                // 為了效能，背景巨量建築僅接收陰影
+                for(let key in this.IMs) {
+                    this.IMs[key].receiveShadow = true;
+                }
+
+                const setupCol = (im, items, list) => {
+                    im.userData = { itemsPerBuilding: items, buildingData: list };
+                    this.worldGroup.add(im);
+                    this.collidableMeshes.push(im);
+                };
+
+                this.towers = []; this.bridgesX = []; this.bridgesZ = [];
+
+                const createBuildingData = (typeAxis) => {
+                    return {
+                        pos: new THREE.Vector3(
+                            (Math.floor(Math.random() * 40) - 20) * 800,
+                            (Math.floor(Math.random() * 40) - 20) * 800,
+                            (Math.floor(Math.random() * 40) - 20) * 800
+                        ),
+                        moveAxis: typeAxis,
+                        baseSpeed: 1500 + Math.random() * 2000,
+                        velocity: new THREE.Vector3(0,0,0),
+                        dir: 1
+                    };
+                };
+
+                for(let i=0; i<NUM_T; i++) {
+                    let b = createBuildingData(new THREE.Vector3(0,1,0));
+                    if(b.pos.length() < 3000) b.pos.x += 3500; 
+                    this.towers.push(b); this.allBuildings.push(b);
+                }
+                for(let i=0; i<NUM_BX; i++) {
+                    let b = createBuildingData(new THREE.Vector3(1,0,0));
+                    if(b.pos.length() < 3000) b.pos.y += 3500;
+                    this.bridgesX.push(b); this.allBuildings.push(b);
+                }
+                for(let i=0; i<NUM_BZ; i++) {
+                    let b = createBuildingData(new THREE.Vector3(0,0,1));
+                    if(b.pos.length() < 3000) b.pos.z += 3500;
+                    this.bridgesZ.push(b); this.allBuildings.push(b);
+                }
+
+                setupCol(this.IMs.tCore, 1, this.towers); setupCol(this.IMs.tPillar, 4, this.towers); setupCol(this.IMs.tTrim, 11, this.towers); setupCol(this.IMs.tCap, 2, this.towers);
+                setupCol(this.IMs.bxCore, 1, this.bridgesX); setupCol(this.IMs.bxPillar, 4, this.bridgesX); setupCol(this.IMs.bxTrim, 11, this.bridgesX); setupCol(this.IMs.bxCap, 2, this.bridgesX);
+                setupCol(this.IMs.bzCore, 1, this.bridgesZ); setupCol(this.IMs.bzPillar, 4, this.bridgesZ); setupCol(this.IMs.bzTrim, 11, this.bridgesZ); setupCol(this.IMs.bzCap, 2, this.bridgesZ);
+
+                this.offsets = {
+                    t: { p: [new THREE.Vector3(160,0,160), new THREE.Vector3(-160,0,160), new THREE.Vector3(160,0,-160), new THREE.Vector3(-160,0,-160)], c: [new THREE.Vector3(0, 1180, 0), new THREE.Vector3(0, -1180, 0)], tr: Array.from({length:11}, (_, i) => new THREE.Vector3(0, -1000 + i*200, 0)) },
+                    bx: { p: [new THREE.Vector3(0,160,160), new THREE.Vector3(0,-160,160), new THREE.Vector3(0,160,-160), new THREE.Vector3(0,-160,-160)], c: [new THREE.Vector3(1180, 0, 0), new THREE.Vector3(-1180, 0, 0)], tr: Array.from({length:11}, (_, i) => new THREE.Vector3(-1000 + i*200, 0, 0)) },
+                    bz: { p: [new THREE.Vector3(160,160,0), new THREE.Vector3(-160,160,0), new THREE.Vector3(160,-160,0), new THREE.Vector3(-160,-160,0)], c: [new THREE.Vector3(0, 0, 1180), new THREE.Vector3(0, 0, -1180)], tr: Array.from({length:11}, (_, i) => new THREE.Vector3(0, 0, -1000 + i*200)) }
+                };
+                this.updateAllMatrices();
+            }
+
+            updateAllMatrices() {
+                const updateGroup = (list, coreIM, pillarIM, trimIM, capIM, off) => {
+                    let pId = 0, trId = 0, cId = 0;
+                    for (let i=0; i<list.length; i++) {
+                        let b = list[i];
+                        _m1.compose(b.pos, _q1, _s1); coreIM.setMatrixAt(i, _m1);
+                        for(let j=0; j<4; j++) { _v1.copy(b.pos).add(off.p[j]); _m1.compose(_v1, _q1, _s1); pillarIM.setMatrixAt(pId++, _m1); }
+                        for(let j=0; j<11; j++) { _v1.copy(b.pos).add(off.tr[j]); _m1.compose(_v1, _q1, _s1); trimIM.setMatrixAt(trId++, _m1); }
+                        for(let j=0; j<2; j++) { _v1.copy(b.pos).add(off.c[j]); _m1.compose(_v1, _q1, _s1); capIM.setMatrixAt(cId++, _m1); }
+                    }
+                    coreIM.instanceMatrix.needsUpdate = true; pillarIM.instanceMatrix.needsUpdate = true; trimIM.instanceMatrix.needsUpdate = true; capIM.instanceMatrix.needsUpdate = true;
+                };
+                updateGroup(this.towers, this.IMs.tCore, this.IMs.tPillar, this.IMs.tTrim, this.IMs.tCap, this.offsets.t);
+                updateGroup(this.bridgesX, this.IMs.bxCore, this.IMs.bxPillar, this.IMs.bxTrim, this.IMs.bxCap, this.offsets.bx);
+                updateGroup(this.bridgesZ, this.IMs.bzCore, this.IMs.bzPillar, this.IMs.bzTrim, this.IMs.bzCap, this.offsets.bz);
+            }
+
+            // --- 系統二：核心交錯 (玩家周圍高密度精緻長廊) ---
+            initConcentratedCorridors(count) {
+                for(let i=0; i<count; i++) {
+                    const length = 2000 + Math.random() * 2500;
+                    const building = this.createLongCorridor(length);
+                    const moveAxisVec = _axes[Math.floor(Math.random() * 3)];
+                    
+                    if (moveAxisVec.x === 1) { building.rotation.y = Math.PI / 2; }
+                    else if (moveAxisVec.y === 1) { building.rotation.x = Math.PI / 2; }
+                    if (Math.random() > 0.5) building.rotateOnAxis(new THREE.Vector3(0,0,1), Math.PI / 2);
+
+                    building.userData = {
+                        moveAxis: moveAxisVec,
+                        speed: 500 + Math.random() * 800, 
+                        dir: Math.random() > 0.5 ? 1 : -1,
+                        velocity: new THREE.Vector3()
+                    };
+
+                    building.position.set(
+                        (Math.random() - 0.5) * 6000,
+                        (Math.random() - 0.5) * 6000,
+                        (Math.random() - 0.5) * 6000
+                    );
+
+                    this.dynamicCorridors.push(building);
+                    this.worldGroup.add(building);
+                }
+            }
+
+            // --- 系統三：無盡迷宮 (基於網格的物理防穿模塊生成) ---
+            createBuildingNode(forceType = null) {
+                const group = new THREE.Group();
+                group.rotation.set(
+                    Math.floor(Math.random() * 4) * Math.PI / 2,
+                    Math.floor(Math.random() * 4) * Math.PI / 2,
+                    Math.floor(Math.random() * 4) * Math.PI / 2
+                );
+
+                const rand = forceType ? (forceType === 'platform' ? 0.1 : 0.9) : Math.random();
+                let arch;
+                
+                if (rand < 0.3 || forceType === 'platform') {
+                    arch = this.createGrandPlatform(this.chunkSize * 1.5);
+                } else if (rand < 0.6) {
+                    arch = this.createShojiRoom(this.chunkSize * 1.5);
+                    arch.position.y = -this.chunkSize/2 + 50; 
+                } else {
+                    arch = this.createGrandStairs(this.chunkSize * 1.5);
+                }
+                
+                // 為了讓玩家可以站在上面隨建築移動 (若有用到旋轉/移動)
+                group.userData = { velocity: new THREE.Vector3(0,0,0) };
+                group.add(arch);
+                return group;
+            }
+
+            createGridModule(x, y, z, forceType = null) {
+                const node = this.createBuildingNode(forceType);
+                node.userData.targetPos = new THREE.Vector3(x * this.chunkSize, y * this.chunkSize, z * this.chunkSize);
+                node.position.copy(node.userData.targetPos); 
+                this.worldGroup.add(node);
+                node.updateMatrixWorld(true);
+                return node;
+            }
+
+            removeChunk(key) {
+                if (!this.activeChunks.has(key)) return;
+                const chunk = this.activeChunks.get(key);
+                this.worldGroup.remove(chunk);
+                this.activeChunks.delete(key);
+                
+                chunk.traverse((child) => {
+                    if (child.isMesh) {
+                        const idx = this.collidableMeshes.indexOf(child);
+                        if (idx > -1) {
+                            this.collidableMeshes[idx] = this.collidableMeshes[this.collidableMeshes.length - 1];
+                            this.collidableMeshes.pop();
+                        }
+                    }
+                });
+            }
+
+            initDustParticles() {
+                const particleCount = 10000;
+                const pGeo = new THREE.BufferGeometry();
+                const pPos = new Float32Array(particleCount * 3);
+                for(let i=0; i<particleCount; i++) {
+                    pPos[i*3] = (Math.random() - 0.5) * 8000;
+                    pPos[i*3+1] = (Math.random() - 0.5) * 8000;
+                    pPos[i*3+2] = (Math.random() - 0.5) * 8000;
+                }
+                pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+                const pMat = new THREE.PointsMaterial({
+                    color: 0xffaa55, size: 4, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false
+                });
+                this.dustSystem = new THREE.Points(pGeo, pMat);
+                this.worldGroup.add(this.dustSystem);
+            }
+
+            update(player, time, delta) {
+                this.frameId++;
+                this.worldGroup.updateMatrixWorld(true);
+
+                player.camera.getWorldPosition(_worldPos);
+                const localPlayerPos = this.worldGroup.worldToLocal(_v1.copy(_worldPos));
+
+                this.dustSystem.position.copy(localPlayerPos);
+                this.dustSystem.rotation.y += delta * 0.02;
+
+                // --- 1. 更新系統三 (動態網格區塊與強制安全平台) ---
+                _downDir.set(0, -1, 0).applyQuaternion(player.wrapper.quaternion).normalize();
+                const localDownDir = _downDir.transformDirection(this.worldGroup.matrixWorld.clone().invert()).normalize();
+                
+                // 強制在玩家掉落方向的前方生成安全捕捉網
+                const catchPos = localPlayerPos.clone().add(localDownDir.clone().multiplyScalar(this.chunkSize * 2));
+                const catchCx = Math.floor(catchPos.x / this.chunkSize);
+                const catchCy = Math.floor(catchPos.y / this.chunkSize);
+                const catchCz = Math.floor(catchPos.z / this.chunkSize);
+
+                const cx = Math.floor(localPlayerPos.x / this.chunkSize);
+                const cy = Math.floor(localPlayerPos.y / this.chunkSize);
+                const cz = Math.floor(localPlayerPos.z / this.chunkSize);
+
+                for (let x = -this.viewDistance; x <= this.viewDistance; x++) {
+                    for (let y = -this.viewDistance; y <= this.viewDistance; y++) {
+                        for (let z = -this.viewDistance; z <= this.viewDistance; z++) {
+                            const isCatchPoint = (cx+x === catchCx && cy+y === catchCy && cz+z === catchCz);
+                            if (!isCatchPoint && x*x + y*y + z*z > this.viewDistance * this.viewDistance * 1.2) continue;
+                            if (Math.random() > 0.3 && !isCatchPoint) continue; // 降低隨機網格生成率，留空間給飛行的長廊
+
+                            const key = `${cx + x},${cy + y},${cz + z}`;
+                            if (!this.activeChunks.has(key)) {
+                                const chunk = this.createGridModule(cx + x, cy + y, cz + z, isCatchPoint ? 'platform' : null);
+                                this.activeChunks.set(key, chunk);
+                            }
+                            this.activeChunks.get(key).userData.lastFrame = this.frameId;
+                        }
+                    }
+                }
+
+                for (let [key, chunk] of this.activeChunks.entries()) {
+                    if (chunk.userData.lastFrame !== this.frameId) {
+                        this.removeChunk(key);
+                    } else {
+                        chunk.position.lerp(chunk.userData.targetPos, 0.08); 
+                    }
+                }
+
+                // --- 2. 更新系統二 (核心集中的精緻動態交錯長廊) ---
+                this.dynamicCorridors.forEach(b => {
+                    b.userData.velocity.copy(b.userData.moveAxis).multiplyScalar(b.userData.speed * b.userData.dir);
+                    _v2.copy(b.userData.velocity).multiplyScalar(delta);
+                    b.position.add(_v2);
+
+                    // 空間收束：一離開玩家周圍 3800 的距離，立刻瞬移回玩家「即將前進的方向前方」
+                    if (b.position.distanceTo(localPlayerPos) > 3800) {
+                        const axisKey = b.userData.moveAxis.x ? 'x' : (b.userData.moveAxis.y ? 'y' : 'z');
+                        b.position[axisKey] = localPlayerPos[axisKey] - (b.userData.dir * 3700); 
+                        
+                        if (axisKey !== 'x') b.position.x = localPlayerPos.x + (Math.random()-0.5) * 3500;
+                        if (axisKey !== 'y') b.position.y = localPlayerPos.y + (Math.random()-0.5) * 3500;
+                        if (axisKey !== 'z') b.position.z = localPlayerPos.z + (Math.random()-0.5) * 3500;
+                    }
+                });
+
+                // --- 3. 更新系統一 (波段狀態機 - 百鬼夜行) ---
+                this.waveTimer -= delta;
+
+                if (this.waveState === this.WAVE_IDLE) {
+                    this.uiSystemTimer.innerText = `下波空間重組: ${Math.max(0, this.waveTimer).toFixed(1)}s`;
+                    
+                    if (this.waveTimer <= 0) {
+                        this.waveState = this.WAVE_RUMBLE;
+                        this.waveTimer = 3.0; 
+                        this.uiAlert.innerText = '⚠️ 空間震動徵兆 ⚠️';
+                        this.uiAlert.style.display = 'block';
+                        this.uiAlert.classList.add('pulse');
+                        this.dmgOverlay.style.opacity = '0.4';
+                    }
+                } 
+                else if (this.waveState === this.WAVE_RUMBLE) {
+                    this.uiSystemTimer.innerText = `警告：結構即將崩壞`;
+                    player.addCameraShake((3.0 - this.waveTimer) * 4.0);
+                    this.dmgOverlay.style.opacity = (0.2 + Math.random()*0.3).toString();
+
+                    if (this.waveTimer <= 0) {
+                        this.waveState = this.WAVE_DASH;
+                        this.waveTimer = 4.5; 
+                        this.uiAlert.innerText = '血鬼術・百鬼夜行';
+                        this.uiAlert.classList.remove('pulse');
+                        this.dmgOverlay.style.opacity = '0.1';
+                        
+                        for (let b of this.allBuildings) {
+                            b.dir = Math.random() > 0.5 ? 1 : -1;
+                            b.currentSpeed = b.baseSpeed * (1.2 + Math.random() * 0.8);
+                        }
+                    }
+                } 
+                else if (this.waveState === this.WAVE_DASH) {
+                    this.uiSystemTimer.innerText = `空間大挪移中...`;
+                    let needsUpdate = false;
+                    let ease = this.waveTimer / 4.5; ease = 1 - Math.pow(1 - ease, 3);
+                    
+                    if (this.waveTimer < 1.0) this.uiAlert.style.opacity = this.waveTimer; 
+
+                    for (let b of this.allBuildings) {
+                        b.velocity.copy(b.moveAxis).multiplyScalar(b.currentSpeed * b.dir * Math.max(ease, 0.05));
+                        _v2.copy(b.velocity).multiplyScalar(delta);
+                        b.pos.add(_v2);
+                        needsUpdate = true;
+
+                        if (b.pos.distanceTo(localPlayerPos) > 18000) {
+                            const axisKey = b.moveAxis.x ? 'x' : (b.moveAxis.y ? 'y' : 'z');
+                            b.pos[axisKey] = localPlayerPos[axisKey] - (b.dir * 17000);
+                            if (axisKey !== 'x') b.pos.x = localPlayerPos.x + (Math.random()-0.5)*25000;
+                            if (axisKey !== 'y') b.pos.y = localPlayerPos.y + (Math.random()-0.5)*25000;
+                            if (axisKey !== 'z') b.pos.z = localPlayerPos.z + (Math.random()-0.5)*25000;
+                            
+                            b.pos.x = Math.round(b.pos.x/800)*800; b.pos.y = Math.round(b.pos.y/800)*800; b.pos.z = Math.round(b.pos.z/800)*800;
+                        }
+                    }
+                    if (needsUpdate) this.updateAllMatrices();
+
+                    if (this.waveTimer <= 0) {
+                        this.waveState = this.WAVE_IDLE;
+                        this.waveTimer = 10.0 + Math.random() * 8.0; 
+                        this.uiAlert.style.display = 'none';
+                        this.uiAlert.style.opacity = '1';
+                        this.dmgOverlay.style.opacity = '0';
+                        for (let b of this.allBuildings) b.velocity.set(0,0,0);
+                        this.updateAllMatrices(); 
+                    }
+                }
+                
+                if (this.waveState === this.WAVE_IDLE && player.isFlying) {
+                    let needsUpdate = false;
+                    for (let b of this.allBuildings) {
+                        if (b.pos.distanceTo(localPlayerPos) > 20000) {
+                             b.pos.x = localPlayerPos.x + (Math.random()-0.5)*25000; b.pos.y = localPlayerPos.y + (Math.random()-0.5)*25000; b.pos.z = localPlayerPos.z + (Math.random()-0.5)*25000;
+                             b.pos.x = Math.round(b.pos.x/800)*800; b.pos.y = Math.round(b.pos.y/800)*800; b.pos.z = Math.round(b.pos.z/800)*800;
+                             needsUpdate = true;
+                        }
+                    }
+                    if (needsUpdate) this.updateAllMatrices();
+                }
+            }
+        }
+
+        // --- 主程式與光影設定 ---
+        let camera, scene, renderer, composer, bloodMoonLight;
+        let player, castleSystem;
+        let clock = new THREE.Clock();
+
+        init();
+        requestAnimationFrame(animate); 
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x010000, 0.0003); 
+            scene.background = new THREE.Color(0x000000);
+
+            camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.1, 40000);
+
+            // 啟用陰影渲染
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" }); 
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0; 
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.7, 0.4);
+            
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            // 全局環境光
+            const ambientLight = new THREE.AmbientLight(0x221111, 0.7); 
+            scene.add(ambientLight);
+
+            // 電影級：跟隨玩家的血月主光源 (附帶陰影)
+            bloodMoonLight = new THREE.DirectionalLight(0xff3311, 1.5);
+            bloodMoonLight.castShadow = true;
+            bloodMoonLight.shadow.mapSize.width = 2048;
+            bloodMoonLight.shadow.mapSize.height = 2048;
+            bloodMoonLight.shadow.camera.near = 500;
+            bloodMoonLight.shadow.camera.far = 12000;
+            bloodMoonLight.shadow.camera.left = -4000;
+            bloodMoonLight.shadow.camera.right = 4000;
+            bloodMoonLight.shadow.camera.top = 4000;
+            bloodMoonLight.shadow.camera.bottom = -4000;
+            bloodMoonLight.shadow.bias = -0.001;
+            scene.add(bloodMoonLight);
+            scene.add(bloodMoonLight.target);
+
+            castleSystem = new InfinityCastleSystem(scene);
+            player = new PlayerPhysicsController(camera, scene, document.body, castleSystem);
+            
+            // 初始生成腳下網格，確保不會開場掉落
+            const startGroup = castleSystem.createGridModule(0, 0, 0, 'platform');
+            castleSystem.activeChunks.set("0,0,0", startGroup);
+            player.wrapper.position.set(0, 60, 0); 
+
+            const uiLayer = document.getElementById('ui-layer');
+            uiLayer.addEventListener('click', () => { player.controls.lock(); });
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.05); 
+            
+            tweenManager.update(time);
+
+            // 確保先建好地圖，再判定玩家物理
+            castleSystem.update(player, time, delta);
+            player.update(delta);
+
+            // 讓全局陰影光源跟隨玩家，確保核心視野永遠有精緻陰影
+            player.camera.getWorldPosition(_worldPos);
+            bloodMoonLight.position.set(_worldPos.x + 3000, _worldPos.y + 4000, _worldPos.z + 2000);
+            bloodMoonLight.target.position.copy(_worldPos);
+
+            composer.render();
+        }
+    </script>
+</body>
+</html>
