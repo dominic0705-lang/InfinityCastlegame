@@ -1,0 +1,1922 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 無限城 - 30招全獨立運鏡極致版</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Microsoft JhengHei', sans-serif; }
+        
+        /* 紅藍漸層專用語法 */
+        .rb-gradient-text {
+            background: linear-gradient(90deg, #ff1744, #00b0ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 15px rgba(255,23,68,0.6)) drop-shadow(0 0 15px rgba(0,176,255,0.6));
+        }
+
+        .rb-gradient-border {
+            border-image: linear-gradient(135deg, #ff1744, #00b0ff) 1;
+            box-shadow: 0 0 25px rgba(255,23,68,0.4), 0 0 25px rgba(0,176,255,0.4);
+        }
+
+        /* 頂部按鈕列 (暫停與設定) - 調高 z-index 確保無時無刻都在最上層 */
+        .top-bar {
+            position: absolute; top: 0; left: 0; width: 100%; height: 80px;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 40px; box-sizing: border-box; z-index: 90; pointer-events: none;
+        }
+        .top-btn {
+            pointer-events: auto; background: rgba(10, 10, 15, 0.6); border: 1px solid rgba(255,255,255,0.2);
+            color: #fff; padding: 10px 20px; font-size: 1.2rem; border-radius: 8px;
+            cursor: pointer; backdrop-filter: blur(8px); transition: all 0.3s;
+            letter-spacing: 2px; font-weight: bold;
+        }
+        .top-btn:hover { 
+            background: linear-gradient(135deg, rgba(255,23,68,0.3), rgba(0,176,255,0.3)); 
+            border: 1px solid transparent; border-image: linear-gradient(135deg, #ff1744, #00b0ff) 1;
+            box-shadow: 0 0 15px rgba(255,23,68,0.5), 0 0 15px rgba(0,176,255,0.5); 
+        }
+
+        /* 載入畫面 */
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100;
+            background: #050505; display: flex; flex-direction: column; transition: opacity 0.8s ease-in-out;
+        }
+        .loading-img-container {
+            height: 75%; width: 100%;
+            background-image: url('載入畫面.jpg'); 
+            background-size: cover; background-position: center;
+            border-bottom: 2px solid #ff1744;
+            box-shadow: 0 10px 50px rgba(255, 23, 68, 0.3);
+        }
+        .loading-bottom {
+            height: 25%; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: radial-gradient(circle, rgba(20, 5, 10, 1) 0%, rgba(0,0,0,1) 100%);
+        }
+        #progress-bar-container {
+            width: 50%; height: 12px; background: #222; border-radius: 8px; overflow: hidden; margin-bottom: 20px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 0 15px rgba(0,176,255,0.3); border: 1px solid #444;
+        }
+        #progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #ff1744, #00b0ff); transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        #progress-text { color: #fff; font-size: 1.8rem; letter-spacing: 5px; font-weight: bold; text-shadow: 0 0 10px #ff1744, 0 0 10px #00b0ff; }
+        .version-text { position: absolute; bottom: 20px; left: 30px; color: #888; font-size: 1.2rem; font-family: monospace; letter-spacing: 2px;}
+        .author-text { position: absolute; bottom: 20px; right: 30px; color: #aaa; font-size: 1.2rem; letter-spacing: 2px;}
+
+        /* 預覽畫面 (點擊任一處開始) */
+        #preview-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50;
+            display: none; flex-direction: column; align-items: center; justify-content: space-between;
+            background: transparent; pointer-events: auto; cursor: pointer; padding: 6vh 0;
+            transition: opacity 0.5s;
+        }
+        #preview-title {
+            font-size: 6rem; font-weight: 900; letter-spacing: 30px; margin-top: 2vh; text-align: center;
+        }
+        #preview-hint {
+            font-size: 2.2rem; color: #fff; text-shadow: 0 0 20px #fff;
+            font-weight: bold; letter-spacing: 10px; margin-bottom: 5vh; animation: blink 1.5s infinite;
+        }
+
+        /* 全新首頁輪播介面 */
+        #home-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 45;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.1); backdrop-filter: blur(5px); pointer-events: none;
+            transition: opacity 0.5s;
+        }
+        .carousel-wrapper {
+            position: relative; width: 100%; height: 500px; display: flex; justify-content: center; align-items: center; perspective: 1200px; pointer-events: auto;
+        }
+        .carousel-card {
+            position: absolute; width: 300px; height: 450px; background: rgba(15, 15, 20, 0.8);
+            border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; overflow: hidden;
+            transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); cursor: pointer; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+        }
+        .carousel-card.active { 
+            transform: translateX(0) scale(1.15); z-index: 10; opacity: 1; 
+            border: 2px solid transparent; border-image: linear-gradient(135deg, #ff1744, #00b0ff) 1;
+            box-shadow: 0 0 35px rgba(255,23,68,0.4), 0 0 35px rgba(0,176,255,0.4); 
+        }
+        .carousel-card.prev { transform: translateX(-350px) scale(0.85) rotateY(15deg); z-index: 5; opacity: 0.6; }
+        .carousel-card.next { transform: translateX(350px) scale(0.85) rotateY(-15deg); z-index: 5; opacity: 0.6; }
+        .carousel-card.hidden-left { transform: translateX(-650px) scale(0.6) rotateY(25deg); z-index: 1; opacity: 0; pointer-events: none; }
+        .carousel-card.hidden-right { transform: translateX(650px) scale(0.6) rotateY(-25deg); z-index: 1; opacity: 0; pointer-events: none; }
+        
+        .card-img { height: 66.66%; background-size: cover; background-position: center; border-bottom: 2px solid #333; background-color: #222; }
+        .card-info { height: 33.33%; padding: 15px; color: #fff; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(0deg, rgba(0,0,0,0.9), rgba(20,20,25,0.6)); }
+        .card-info h2 { margin: 0 0 8px 0; font-size: 1.8rem; letter-spacing: 5px; text-shadow: 0 0 10px #ff1744; font-weight: 900; }
+        .carousel-card.active .card-info h2 { background: linear-gradient(90deg, #ff1744, #00b0ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: none; filter: drop-shadow(0 0 8px rgba(255,255,255,0.2)); }
+        .card-info p { margin: 0; font-size: 1rem; color: #ccc; letter-spacing: 1px; }
+        
+        .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); font-size: 4rem; color: rgba(255,255,255,0.4); cursor: pointer; z-index: 20; transition: color 0.3s; text-shadow: 0 0 15px #000; pointer-events: auto; }
+        .nav-arrow:hover { color: #fff; text-shadow: 0 0 20px #00b0ff, 0 0 20px #ff1744; }
+        #nav-left { left: 8%; }
+        #nav-right { right: 8%; }
+
+        /* 疊加選單 (暫停與設定) */
+        .overlay-menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(12px);
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 80; color: #fff;
+        }
+        .overlay-menu h1 { font-size: 4.5rem; letter-spacing: 15px; margin-bottom: 40px; font-weight: 900; }
+        .overlay-btn {
+            background: rgba(15,15,20,0.6); border: 1px solid rgba(255,255,255,0.2); color: #fff;
+            padding: 15px 40px; font-size: 1.5rem; border-radius: 8px; margin: 10px;
+            cursor: pointer; transition: all 0.3s; letter-spacing: 5px; width: 320px; font-weight: bold;
+        }
+        .overlay-btn:hover { 
+            background: linear-gradient(135deg, rgba(255,23,68,0.3), rgba(0,176,255,0.3)); 
+            border-color: transparent; border-image: linear-gradient(135deg, #ff1744, #00b0ff) 1;
+            box-shadow: 0 0 25px rgba(255,23,68,0.5), 0 0 25px rgba(0,176,255,0.5); 
+        }
+
+        /* 設定選單專用 */
+        .setting-row { display: flex; justify-content: space-between; align-items: center; width: 450px; margin-bottom: 20px; }
+        .setting-row span { font-size: 1.6rem; font-weight: bold; letter-spacing: 2px; }
+        .overlay-btn.small { padding: 10px 20px; font-size: 1.2rem; width: 220px; margin: 0; }
+        
+        /* 手機虛擬按鍵 */
+        #mobile-controls {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 35; display: none;
+        }
+        .m-btn {
+            position: absolute; width: 65px; height: 65px; border-radius: 50%; background: rgba(20,20,30,0.6);
+            border: 2px solid rgba(255,255,255,0.3); color: #fff; display: flex; justify-content: center; align-items: center;
+            font-size: 1.4rem; font-weight: bold; pointer-events: auto; user-select: none; backdrop-filter: blur(4px);
+        }
+        .m-btn:active { background: rgba(255,170,0,0.6); border-color: #ffaa00; box-shadow: 0 0 20px #ffaa00; transform: scale(0.9); }
+        #m-atk { bottom: 40px; right: 120px; width: 85px; height: 85px; font-size: 2rem; border-color: #ff1744; }
+        #m-jump { bottom: 140px; right: 60px; }
+        #m-dash { bottom: 40px; right: 20px; }
+        #joystick-zone { position: absolute; bottom: 40px; left: 40px; width: 140px; height: 140px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.2); pointer-events: none; }
+        .m-dir { position: absolute; width: 45px; height: 45px; background: rgba(255,255,255,0.15); border-radius: 8px; display: flex; justify-content: center; align-items: center; color: white; user-select: none; pointer-events: auto; backdrop-filter: blur(4px); }
+        .m-dir:active { background: rgba(0,176,255,0.6); border: 1px solid #00b0ff; box-shadow: 0 0 15px #00b0ff;}
+        #m-cam-zone { position: absolute; top: 0; right: 0; width: 50%; height: 60%; pointer-events: auto; z-index: 30; touch-action: none; }
+
+        /* 角色選擇介面 (透視預覽) */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(8px);
+            color: white; z-index: 40; opacity: 0; transition: opacity 0.5s;
+        }
+        #char-select { text-align: center; }
+        #char-select h1 { font-size: 4.5rem; letter-spacing: 15px; margin-bottom: 40px; font-weight: 900; }
+        .char-cards { display: flex; gap: 35px; flex-wrap: wrap; justify-content: center; }
+        .card {
+            width: 250px; padding: 40px 20px; background: rgba(15, 15, 20, 0.65);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .card h2 { font-size: 2.2rem; margin: 0 0 10px 0; font-weight: 900; }
+        .card p { font-size: 1.1rem; margin: 0; opacity: 0.8; letter-spacing: 2px; }
+
+        .card:hover { border-color: transparent; border-image: linear-gradient(135deg, #ff1744, #00b0ff) 1; box-shadow: 0 0 35px rgba(255,23,68,0.4), 0 0 35px rgba(0,176,255,0.4); background: rgba(20, 15, 25, 0.85); transform: translateY(-12px) scale(1.05); }
+
+        .card.giyu h2 { color: #00ccff; text-shadow: 0 0 15px #0066ff; }
+        .card.tanjiro h2 { color: #ff5500; text-shadow: 0 0 15px #ff2200; }
+        .card.akaza h2 { color: #ff55cc; text-shadow: 0 0 15px #ff00aa; }
+
+        /* 遊戲內 UI 元素 */
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 4px; height: 4px; background: #ffffff; border-radius: 50%; pointer-events: none; z-index: 5;
+            box-shadow: 0 0 12px 3px rgba(255,255,255,0.5); transition: transform 0.1s cubic-bezier(0.1, 0.9, 0.2, 1);
+            display: none;
+        }
+        
+        #gravity-timer {
+            position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
+            font-size: 1.4rem; color: #fff; font-weight: bold; text-shadow: 0 0 15px #ff1744, 0 0 5px #00b0ff;
+            z-index: 5; background: rgba(10,5,15,0.85); padding: 10px 35px; border: 1px solid rgba(255,23,68,0.5);
+            display: none; letter-spacing: 4px; border-radius: 8px; box-shadow: 0 0 20px rgba(255,23,68,0.3);
+        }
+
+        #wave-alert {
+            position: absolute; top: 20%; left: 50%; transform: translateX(-50%);
+            font-size: 3.5rem; color: #ff1744; text-shadow: 0 0 40px #ff1744, 0 0 15px #fff;
+            font-weight: 900; letter-spacing: 15px; z-index: 5; display: none; text-align: center; pointer-events: none; white-space: nowrap;
+        }
+
+        #attack-name {
+            position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%);
+            font-size: 5.5rem; color: #ffffff; font-weight: 900; letter-spacing: 15px;
+            text-shadow: 0 0 40px #000, 0 0 20px #fff;
+            z-index: 15; pointer-events: none; opacity: 0;
+            white-space: nowrap; font-style: italic; transition: opacity 0.2s, transform 0.1s;
+        }
+
+        /* 技能熱鍵欄位 (30招縮圖) */
+        #skill-bar {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: none; gap: 12px; z-index: 20;
+        }
+        .skill-slot {
+            width: 55px; height: 55px; border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 6px; background-size: cover; background-position: center;
+            background-color: #222; 
+            position: relative; overflow: hidden; box-shadow: 0 0 15px rgba(0,0,0,0.8);
+            transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .skill-slot.active {
+            transform: scale(1.2) translateY(-10px);
+            border: 2px solid transparent; border-image: linear-gradient(135deg, #ff1744, #00b0ff) 1;
+            box-shadow: 0 0 25px rgba(255,23,68,0.6), 0 0 25px rgba(0,176,255,0.6);
+            z-index: 21;
+        }
+        .skill-key {
+            position: absolute; bottom: 2px; right: 4px; font-size: 1rem; font-weight: bold;
+            color: #fff; text-shadow: 1px 1px 3px #000, -1px -1px 3px #000;
+        }
+
+        .pulse { animation: pulseAnim 0.3s infinite alternate; }
+        @keyframes blink { 0%, 100% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255,255,255,0.8)); } 50% { opacity: 0.4; filter: none; } }
+        @keyframes pulseAnim { from { opacity: 0.4; transform: translateX(-50%) scale(0.95); } to { opacity: 1; transform: translateX(-50%) scale(1.05); } }
+        #damage-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; background: rgba(255, 23, 68, 0.5); opacity: 0; mix-blend-mode: overlay; transition: opacity 0.3s; }
+        .cinematic-bar { position: absolute; left: 0; width: 100%; height: 0; background: #000; z-index: 12; transition: height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); pointer-events: none; }
+        #cinematic-top { top: 0; }
+        #cinematic-bottom { bottom: 0; }
+    </style>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.136.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <!-- 頂部按鈕 -->
+    <div class="top-bar">
+        <div id="btn-pause" class="top-btn" onclick="togglePause()">❚❚ 暫停</div>
+        <div id="btn-settings" class="top-btn" onclick="openSettings()">⚙ 設定</div>
+    </div>
+
+    <!-- 載入畫面 -->
+    <div id="loading-screen">
+        <div class="loading-img-container"></div>
+        <div class="loading-bottom">
+            <div id="progress-bar-container"><div id="progress-bar"></div></div>
+            <div id="progress-text">準備進入無限城... 0%</div>
+            <div class="version-text">v3.0</div>
+            <div class="author-text">作者: 施棨耀 x gemini</div>
+        </div>
+    </div>
+
+    <!-- 預覽畫面 (點擊任一處開始) -->
+    <div id="preview-screen">
+        <div id="preview-title" class="rb-gradient-text">無限城<br><span style="font-size: 2rem; letter-spacing: 15px; color:#ccc; -webkit-text-fill-color: #ccc; filter:none; background:none;">極致運鏡還原版</span></div>
+        <div id="preview-hint">點擊任一處開始</div>
+    </div>
+
+    <!-- 全新首頁輪播介面 -->
+    <div id="home-screen">
+        <div id="nav-left" class="nav-arrow" onclick="navCarousel(-1)">❮</div>
+        <div class="carousel-wrapper" id="carousel-wrapper">
+            <div class="carousel-card" onclick="selectMode(0)">
+                <div class="card-img" style="background-image: url('無盡.jpg');"></div>
+                <div class="card-info"><h2>無盡</h2><p></p></div>
+            </div>
+            <div class="carousel-card active" onclick="selectMode(1)">
+                <div class="card-img" style="background-image: url('基本.jpg');"></div>
+                <div class="card-info"><h2>基本</h2><p>原著30招特效全開</p></div>
+            </div>
+            <div class="carousel-card" onclick="selectMode(2)">
+                <div class="card-img" style="background-image: url('訓練.jpg');"></div>
+                <div class="card-info"><h2>訓練</h2><p></p></div>
+            </div>
+            <div class="carousel-card" onclick="selectMode(3)">
+                <div class="card-img" style="background-image: url('自訂動畫.jpg');"></div>
+                <div class="card-info"><h2>自訂動畫</h2><p></p></div>
+            </div>
+            <div class="carousel-card" onclick="selectMode(4)">
+                <div class="card-img" style="background-image: url('選擇角色.jpg');"></div>
+                <div class="card-info"><h2>角色選擇</h2><p>選擇參戰角色</p></div>
+            </div>
+        </div>
+        <div id="nav-right" class="nav-arrow" onclick="navCarousel(1)">❯</div>
+    </div>
+
+    <!-- 暫停選單 -->
+    <div id="pause-menu" class="overlay-menu">
+        <h1 class="rb-gradient-text">遊戲暫停</h1>
+        <button class="overlay-btn" onclick="resumeGame()">繼續遊戲</button>
+        <button class="overlay-btn" onclick="returnToHome()">回首頁</button>
+    </div>
+
+    <!-- 設定選單 -->
+    <div id="settings-menu" class="overlay-menu">
+        <h1 class="rb-gradient-text">設定</h1>
+        <div class="setting-row">
+            <span>操作模式</span>
+            <button id="btn-toggle-device" class="overlay-btn small" onclick="toggleDeviceMode()">自動偵測中...</button>
+        </div>
+        <div class="setting-row">
+            <span>動畫運鏡</span>
+            <button id="btn-toggle-cinematic" class="overlay-btn small" onclick="toggleCinematic()">開啟 (ON)</button>
+        </div>
+        <button class="overlay-btn" style="margin-top: 40px;" onclick="closeSettings()">關閉</button>
+    </div>
+
+    <!-- 角色選擇介面 (透視預覽) -->
+    <div id="ui-layer">
+        <div id="char-select">
+            <h1 class="rb-gradient-text">選擇參戰角色</h1>
+            <div class="char-cards">
+                <div class="card giyu" onmouseenter="previewHoverChar('giyu')" onclick="selectChar('giyu')"><h2>富岡義勇</h2><p>水之呼吸</p></div>
+                <div class="card tanjiro" onmouseenter="previewHoverChar('tanjiro')" onclick="selectChar('tanjiro')"><h2>竈門炭治郎</h2><p>火之神神樂</p></div>
+                <div class="card akaza" onmouseenter="previewHoverChar('akaza')" onclick="selectChar('akaza')"><h2>猗窩座</h2><p>上弦之參・破壞殺</p></div>
+            </div>
+            <button class="overlay-btn" style="margin-top:40px; font-size:1.2rem; padding: 10px 30px;" onclick="returnToHome()">返回首頁</button>
+        </div>
+    </div>
+    
+    <div id="cinematic-top" class="cinematic-bar"></div>
+    <div id="cinematic-bottom" class="cinematic-bar"></div>
+    
+    <div id="crosshair"></div>
+    <div id="gravity-timer">血鬼術・空間變換: 10.0s</div>
+    <div id="wave-alert">⚠️ 空間震動徵兆 ⚠️</div>
+    <div id="attack-name"></div>
+    <div id="damage-overlay"></div>
+
+    <!-- 手機虛擬按鍵 -->
+    <div id="mobile-controls">
+        <div id="joystick-zone">
+            <div class="m-dir" style="top:0; left:47px;" onpointerdown="if(playerPhysics) playerPhysics.moveForward=true" onpointerup="if(playerPhysics) playerPhysics.moveForward=false" onpointerleave="if(playerPhysics) playerPhysics.moveForward=false">W</div>
+            <div class="m-dir" style="bottom:0; left:47px;" onpointerdown="if(playerPhysics) playerPhysics.moveBackward=true" onpointerup="if(playerPhysics) playerPhysics.moveBackward=false" onpointerleave="if(playerPhysics) playerPhysics.moveBackward=false">S</div>
+            <div class="m-dir" style="top:47px; left:0;" onpointerdown="if(playerPhysics) playerPhysics.moveLeft=true" onpointerup="if(playerPhysics) playerPhysics.moveLeft=false" onpointerleave="if(playerPhysics) playerPhysics.moveLeft=false">A</div>
+            <div class="m-dir" style="top:47px; right:0;" onpointerdown="if(playerPhysics) playerPhysics.moveRight=true" onpointerup="if(playerPhysics) playerPhysics.moveRight=false" onpointerleave="if(playerPhysics) playerPhysics.moveRight=false">D</div>
+        </div>
+        <div id="m-atk" class="m-btn" onpointerdown="if(playerPhysics) playerPhysics.triggerPlayerAttack(0)">攻</div>
+        <div id="m-jump" class="m-btn" onpointerdown="if(playerPhysics && playerPhysics.canJump) { playerPhysics.velocity.y += playerPhysics.jumpStrength; playerPhysics.canJump = false; }">跳</div>
+        <div id="m-dash" class="m-btn" onpointerdown="if(playerPhysics) playerPhysics.triggerPlayerDash()">閃</div>
+        <div id="m-cam-zone"></div>
+    </div>
+
+    <!-- 熱鍵技能 UI -->
+    <div id="skill-bar"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+        // --- 全域變數與狀態管理 ---
+        const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _m1 = new THREE.Matrix4(), _downDir = new THREE.Vector3(), _worldPos = new THREE.Vector3(), _s1 = new THREE.Vector3(1,1,1), _axes = [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)];
+        let timeScale = 1.0; 
+        let isPreviewMode = false;
+        let isGamePlaying = false;
+        let isPaused = false;
+
+        // --- 設定與狀態儲存 ---
+        window.gameSettings = {
+            isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+            enableCinematic: true
+        };
+
+        window.toggleDeviceMode = () => {
+            window.gameSettings.isMobile = !window.gameSettings.isMobile;
+            window.updateSettingsUI();
+            window.applyDeviceMode();
+        };
+
+        window.toggleCinematic = () => {
+            window.gameSettings.enableCinematic = !window.gameSettings.enableCinematic;
+            window.updateSettingsUI();
+        };
+
+        window.updateSettingsUI = () => {
+            const btnDevice = document.getElementById('btn-toggle-device');
+            const btnCine = document.getElementById('btn-toggle-cinematic');
+            if (btnDevice) {
+                btnDevice.innerText = window.gameSettings.isMobile ? '手機模式 (Mobile)' : '電腦模式 (PC)';
+                btnDevice.style.borderColor = window.gameSettings.isMobile ? '#00b0ff' : 'rgba(255,255,255,0.2)';
+            }
+            if (btnCine) {
+                btnCine.innerText = window.gameSettings.enableCinematic ? '開啟 (ON)' : '關閉 (OFF)';
+                btnCine.style.borderColor = window.gameSettings.enableCinematic ? '#ff1744' : 'rgba(255,255,255,0.2)';
+            }
+        };
+
+        window.applyDeviceMode = () => {
+            const mc = document.getElementById('mobile-controls');
+            if (mc) {
+                mc.style.display = (window.gameSettings.isMobile && isGamePlaying) ? 'block' : 'none';
+            }
+            if (window.gameSettings.isMobile && isGamePlaying) {
+                if (document.pointerLockElement) document.exitPointerLock();
+            } else if (!window.gameSettings.isMobile && isGamePlaying && !isPaused) {
+                if (player && player.controls) player.controls.lock();
+            }
+        };
+
+        // UI 按鍵與全域事件掛載
+        window.pauseGame = () => {
+            isPaused = true;
+            document.getElementById('pause-menu').style.display = 'flex';
+        };
+
+        window.resumeGame = () => {
+            isPaused = false;
+            document.getElementById('pause-menu').style.display = 'none';
+            window.applyDeviceMode();
+        };
+
+        window.togglePause = () => {
+            if (isPaused) {
+                window.resumeGame();
+            } else {
+                if (document.pointerLockElement) {
+                    document.exitPointerLock(); // 會觸發 unlock -> pauseGame()
+                } else {
+                    window.pauseGame();
+                }
+            }
+        };
+
+        // 手機端視角滑動偵測
+        let touchStartX = 0, touchStartY = 0;
+        window.addEventListener('touchstart', (e) => {
+            if (!isGamePlaying || !window.gameSettings.isMobile || isPaused) return;
+            if (e.target.id === 'm-cam-zone') {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isGamePlaying || !window.gameSettings.isMobile || isPaused) return;
+            if (e.target.id === 'm-cam-zone') {
+                e.preventDefault(); // 阻止畫面滾動
+                const touch = e.touches[0];
+                const dx = touch.clientX - touchStartX;
+                const dy = touch.clientY - touchStartY;
+                touchStartX = touch.clientX;
+                touchStartY = touch.clientY;
+                
+                if (playerPhysics && playerPhysics.cameraMount) {
+                    playerPhysics.cameraMount.rotation.y -= dx * 0.01;
+                    playerPhysics.camera.rotation.x -= dy * 0.01;
+                    playerPhysics.camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, playerPhysics.camera.rotation.x));
+                }
+            }
+        }, {passive: false});
+
+        // 綁定全域 ESC 按鍵
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (!document.pointerLockElement) {
+                    if (document.getElementById('settings-menu').style.display === 'flex') {
+                        window.closeSettings();
+                    } else if (document.getElementById('ui-layer').style.display === 'flex') {
+                        window.returnToHome();
+                    } else {
+                        window.togglePause();
+                    }
+                }
+            }
+        });
+
+        window.returnToHome = () => {
+            isPaused = false; 
+            document.getElementById('pause-menu').style.display = 'none';
+            document.getElementById('ui-layer').style.opacity = '0';
+            
+            setTimeout(() => {
+                document.getElementById('ui-layer').style.display = 'none';
+                isGamePlaying = false;
+                
+                if (player) {
+                    if(document.pointerLockElement) document.exitPointerLock();
+                    scene.remove(player.wrapper);
+                    player = null;
+                }
+                document.getElementById('skill-bar').style.display = 'none';
+                document.getElementById('crosshair').style.display = 'none';
+                document.getElementById('mobile-controls').style.display = 'none';
+                
+                isPreviewMode = true;
+                camera.position.set(0, 150, 450);
+                camera.lookAt(0, 50, 0);
+                
+                if(!previewTanjiro) {
+                    let previewChar = selectedChar ? selectedChar : ROSTERS.tanjiro;
+                    previewTanjiro = createAvatarModel(previewChar);
+                    previewTanjiro.charId = previewChar.id;
+                    previewTanjiro.model.position.set(0, -2, 0);
+                    previewTanjiro.model.scale.set(8, 8, 8); 
+                    scene.add(previewTanjiro.model);
+                }
+                if (outlinePass) outlinePass.selectedObjects = [previewTanjiro.model];
+                
+                document.getElementById('home-screen').style.display = 'flex';
+                setTimeout(() => { document.getElementById('home-screen').style.opacity = '1'; }, 50);
+                window.updateCarousel();
+            }, 300);
+        };
+
+        window.closeSettings = () => {
+            document.getElementById('settings-menu').style.display = 'none';
+            if(isPaused) {
+                document.getElementById('pause-menu').style.display = 'flex'; 
+            }
+        };
+
+        window.openSettings = () => {
+            if (!isPaused) window.pauseGame();
+            document.getElementById('pause-menu').style.display = 'none';
+            document.getElementById('settings-menu').style.display = 'flex';
+            if(document.pointerLockElement) document.exitPointerLock();
+        };
+
+        // --- 首頁輪播邏輯 ---
+        let currentCarouselSlide = 1; 
+        window.updateCarousel = () => {
+            const slides = document.querySelectorAll('.carousel-card');
+            slides.forEach((slide, index) => {
+                slide.className = 'carousel-card'; 
+                if (index === currentCarouselSlide) {
+                    slide.classList.add('active');
+                } else if (index === currentCarouselSlide - 1) {
+                    slide.classList.add('prev');
+                } else if (index === currentCarouselSlide + 1) {
+                    slide.classList.add('next');
+                } else if (index < currentCarouselSlide - 1) {
+                    slide.classList.add('hidden-left');
+                } else if (index > currentCarouselSlide + 1) {
+                    slide.classList.add('hidden-right');
+                }
+            });
+        };
+
+        window.navCarousel = (dir) => {
+            const max = document.querySelectorAll('.carousel-card').length - 1;
+            currentCarouselSlide += dir;
+            if (currentCarouselSlide < 0) currentCarouselSlide = 0;
+            if (currentCarouselSlide > max) currentCarouselSlide = max;
+            window.updateCarousel();
+        };
+
+        window.selectMode = (index) => {
+            if (index !== currentCarouselSlide) {
+                currentCarouselSlide = index;
+                window.updateCarousel();
+            } else {
+                if (index === 4) { 
+                    window.enterCharSelect();
+                } else if (index === 1) { 
+                    if (!selectedChar) {
+                        selectedChar = ROSTERS['tanjiro']; 
+                        texEffect = createEffectTex(selectedChar.id);
+                    }
+                    window.enterGameMode();
+                } else {
+                    alert("該模式正在建置中，敬請期待！");
+                }
+            }
+        };
+
+        window.enterGameMode = () => {
+            document.getElementById('home-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('home-screen').style.display = 'none';
+                document.getElementById('crosshair').style.display = 'block';
+                
+                const alertBox = document.getElementById('wave-alert');
+                alertBox.innerHTML = `<span style="font-size: 2rem;">[W,A,S,D]移動 | [空白]跳躍/飛行 | [1~0]發動招式 | [右鍵]瞬步</span>`;
+                alertBox.style.display = 'block';
+                alertBox.style.opacity = '1';
+                setTimeout(() => { 
+                    alertBox.style.display = 'none'; 
+                    alertBox.innerHTML = '⚠️ 空間震動徵兆 ⚠️'; 
+                }, 5000);
+
+                startGamePlay(); 
+            }, 500);
+        };
+
+        class SimpleTween {
+            constructor() { this.tweens = []; }
+            to(obj, props, duration) {
+                return new Promise(resolve => {
+                    const startProps = {};
+                    for (let k in props) {
+                        if (obj[k] && obj[k].isVector3) startProps[k] = new THREE.Vector3().copy(obj[k]);
+                        else if (obj[k] && obj[k].isQuaternion) startProps[k] = new THREE.Quaternion().copy(obj[k]);
+                        else startProps[k] = obj[k];
+                    }
+                    this.tweens.push({ obj, startProps, targetProps: props, duration, startTime: performance.now(), resolve });
+                });
+            }
+            update(time) {
+                for (let i = this.tweens.length - 1; i >= 0; i--) {
+                    const t = this.tweens[i]; let progress = (time - t.startTime) / t.duration; if (progress >= 1) progress = 1;
+                    const ease = 1 - Math.pow(1 - progress, 4); 
+                    if (t.obj.isQuaternion) t.obj.slerpQuaternions(t.startProps, t.targetProps, ease);
+                    else if (t.obj.isVector3) t.obj.lerpVectors(t.startProps, t.targetProps, ease);
+                    else for (let k in t.targetProps) t.obj[k] = t.startProps[k] + (t.targetProps[k] - t.startProps[k]) * ease;
+                    if (progress === 1) { t.resolve(); this.tweens[i] = this.tweens[this.tweens.length - 1]; this.tweens.pop(); }
+                }
+            }
+        }
+        const tweenManager = new SimpleTween();
+
+        class SFXEngine {
+            constructor() {
+                try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { console.warn("Web Audio not supported"); }
+                this.masterGain = this.ctx ? this.ctx.createGain() : null;
+                if(this.masterGain) { this.masterGain.gain.value = 0.6; this.masterGain.connect(this.ctx.destination); }
+            }
+            createNoiseBuffer() {
+                const b = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate), output = b.getChannelData(0);
+                for (let i = 0; i < b.length; i++) output[i] = Math.random() * 2 - 1; return b;
+            }
+            playSlash() {
+                if(!this.ctx) return; const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(800, t); osc.frequency.exponentialRampToValueAtTime(100, t + 0.3);
+                gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(1, t + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+                osc.connect(gain); gain.connect(this.masterGain); osc.start(t); osc.stop(t + 0.3);
+            }
+            playWater() {
+                if(!this.ctx) return; const t = this.ctx.currentTime;
+                const noise = this.ctx.createBufferSource(); noise.buffer = this.createNoiseBuffer();
+                const filter = this.ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.setValueAtTime(300, t); filter.frequency.linearRampToValueAtTime(1500, t + 0.5); filter.Q.value = 1.5;
+                const gain = this.ctx.createGain(); gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(1.5, t + 0.2); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+                noise.connect(filter); filter.connect(gain); gain.connect(this.masterGain); noise.start(t); noise.stop(t + 0.8);
+            }
+            playFire() {
+                if(!this.ctx) return; const t = this.ctx.currentTime;
+                const noise = this.ctx.createBufferSource(); noise.buffer = this.createNoiseBuffer();
+                const filter = this.ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(800, t); filter.frequency.exponentialRampToValueAtTime(100, t + 0.6);
+                const gain = this.ctx.createGain(); gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(2.0, t + 0.1); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+                noise.connect(filter); filter.connect(gain); gain.connect(this.masterGain); noise.start(t); noise.stop(t + 0.6);
+            }
+            playImpact() {
+                if(!this.ctx) return; const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(20, t + 0.4);
+                gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(2, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+                osc.connect(gain); gain.connect(this.masterGain); osc.start(t); osc.stop(t + 0.4);
+            }
+            playBuildingRumble() {
+                if(!this.ctx) return; const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(40, t); osc.frequency.linearRampToValueAtTime(20, t + 1.5);
+                const filter = this.ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 100;
+                gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(1.5, t + 0.5); gain.gain.linearRampToValueAtTime(0, t + 1.5);
+                osc.connect(filter); filter.connect(gain); gain.connect(this.masterGain); osc.start(t); osc.stop(t + 1.5);
+            }
+            playNagi() {
+                if(!this.ctx) return; const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(1000, t); osc.frequency.exponentialRampToValueAtTime(2000, t + 2.0);
+                gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(0.2, t + 0.5); gain.gain.linearRampToValueAtTime(0, t + 2.0);
+                osc.connect(gain); gain.connect(this.masterGain); osc.start(t); osc.stop(t + 2.0);
+            }
+        }
+        let sfx;
+
+        const ROSTERS = {
+            giyu: {
+                id: 'giyu', name: '富岡義勇', title: '水 之 呼 吸', prefix: '富',
+                colors: { title: '#00bbff', glow: '#0066ff', ui: 'linear-gradient(135deg, rgba(0,10,30,0.95) 0%, rgba(5,0,15,0.95) 100%)', pWater: 0x00c3ff, pOutline: 0x050a14, wpn: 0x0066ff, shock: 0x00ffff },
+                attacks: ["壹之型・水面斬", "貳之型・水車", "參之型・流流舞", "肆之型・打潮", "伍之型・旱天慈雨", "陸之型・扭轉漩渦", "柒之型・雫波紋擊刺", "捌之型・瀧壺", "玖之型・水流飛沫", "拾壹之型・凪"]
+            },
+            tanjiro: {
+                id: 'tanjiro', name: '竈門炭治郎', title: '火之神神樂', prefix: '炭',
+                colors: { title: '#ff5500', glow: '#ff2200', ui: 'linear-gradient(135deg, rgba(30,5,0,0.95) 0%, rgba(15,0,0,0.95) 100%)', pWater: 0xff4400, pOutline: 0x330500, wpn: 0x111111, shock: 0xffaa00 },
+                attacks: ["圓舞", "碧羅之天", "烈日紅鏡", "幻日虹", "火車", "飛輪陽炎", "陽華突", "飛輝皎月", "斜陽轉身", "炎舞"]
+            },
+            akaza: {
+                id: 'akaza', name: '猗窩座', title: '破 壞 殺', prefix: '猗',
+                colors: { title: '#ff55cc', glow: '#ff00aa', ui: 'linear-gradient(135deg, rgba(30,0,15,0.95) 0%, rgba(10,5,20,0.95) 100%)', pWater: 0xff55cc, pOutline: 0x110033, wpn: 0xffaadd, shock: 0xff88ff },
+                attacks: ["破壞殺・羅針", "破壞殺・空式", "破壞殺・亂式", "破壞殺・滅式", "腳式・冠先割", "腳式・流閃群光", "腳式・飛遊星千輪", "碎式・萬葉閃柳", "終式・青銀亂殘光", "術式展開・破壞殺"]
+            }
+        };
+        let selectedChar = null;
+
+        let toonGradientMap;
+        function createToonGradient() {
+            const colors = new Uint8Array([80, 80, 80,  160, 160, 160,  255, 255, 255]);
+            const map = new THREE.DataTexture(colors, 3, 1, THREE.RGBFormat);
+            map.minFilter = THREE.NearestFilter;
+            map.magFilter = THREE.NearestFilter;
+            map.generateMipmaps = false;
+            map.needsUpdate = true;
+            return map;
+        }
+
+        function createWoodTex(baseHex, grainHex) {
+            const size = 256; const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d'), data = ctx.createImageData(size, size).data; const cb = new THREE.Color(baseHex), cg = new THREE.Color(grainHex);
+            for (let y=0; y<size; y++) { for (let x=0; x<size; x++) { let nx = x * 0.03, ny = y * 0.16; let grain = Math.abs(Math.sin(nx * 15.0 + (Math.sin(nx * 2.0 + ny * 0.5) * 0.5 + Math.sin(nx * 5.0) * 0.2) * 6.0)); let c = cb.clone().lerp(cg, grain * 0.5 + Math.random() * 0.05 + 0.2); let i = (y * size + x) * 4; data[i] = c.r*255; data[i+1] = c.g*255; data[i+2] = c.b*255; data[i+3] = 255; } }
+            ctx.putImageData(new ImageData(data, size, size), 0, 0); const tex = new THREE.CanvasTexture(canvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; return tex;
+        }
+
+        function createPaperTex() {
+            const size = 128; const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d'), data = ctx.createImageData(size, size).data; const cb = new THREE.Color(0xfff8ee), cg = new THREE.Color(0xe0cdb5);
+            for (let i = 0; i < size * size; i++) { let x = i % size, y = Math.floor(i / size); let blend = ((Math.sin(x*0.12) + Math.sin(y*0.12) + Math.sin((x+y)*0.08))/3 + 1) * 0.5 * 0.7 + Math.random() * 0.15; let c = cb.clone().lerp(cg, blend); data[i*4] = c.r*255; data[i*4+1] = c.g*255; data[i*4+2] = c.b*255; data[i*4+3] = 255; }
+            ctx.putImageData(new ImageData(data, size, size), 0, 0); const tex = new THREE.CanvasTexture(canvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; return tex;
+        }
+
+        function createTatamiTex() {
+            const size = 128; const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d'), data = ctx.createImageData(size, size).data; const cBase = new THREE.Color(0x556035), cDark = new THREE.Color(0x353d20), cBorder = new THREE.Color(0x111111);
+            for (let i = 0; i < size * size; i++) { let x = i % size, y = Math.floor(i / size); if (x < 6 || x > 121) { let c = cBorder.clone().lerp(new THREE.Color(0x222222), Math.random() * 0.1); data[i*4] = c.r*255; data[i*4+1] = c.g*255; data[i*4+2] = c.b*255; data[i*4+3] = 255; } else { let blend = (Math.abs(Math.sin(y * 1.2)) * 0.5 + Math.abs(Math.sin(x * 30)) * 0.5) * 0.8 + Math.random() * 0.2; let c = cBase.clone().lerp(cDark, blend); data[i*4] = c.r*255; data[i*4+1] = c.g*255; data[i*4+2] = c.b*255; data[i*4+3] = 255; } }
+            ctx.putImageData(new ImageData(data, size, size), 0, 0); const tex = new THREE.CanvasTexture(canvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4, 4); return tex;
+        }
+
+        function createRoofTex() {
+            const size = 128; const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d'), data = ctx.createImageData(size, size).data; const c1 = new THREE.Color(0x1a1a1a), c2 = new THREE.Color(0x050505);
+            for (let i = 0; i < size * size; i++) { let x = i % size, y = Math.floor(i / size); let blend = (Math.sin(x * 0.5) + 1) * 0.5; if (y % 16 < 2) blend = 1.0; let c = c1.clone().lerp(c2, blend + Math.random()*0.1); data[i*4] = c.r*255; data[i*4+1] = c.g*255; data[i*4+2] = c.b*255; data[i*4+3] = 255; }
+            ctx.putImageData(new ImageData(data, size, size), 0, 0); const tex = new THREE.CanvasTexture(canvas); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4, 4); return tex;
+        }
+
+        function createCharacterSkin(type) {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512; const ctx = canvas.getContext('2d');
+            if (type === 'tanjiro') {
+                ctx.fillStyle = '#111'; ctx.fillRect(0,0,512,512); ctx.fillStyle = '#155c34'; 
+                for(let i=0; i<16; i++) for(let j=0; j<16; j++) if((i+j)%2===0) ctx.fillRect(i*32, j*32, 32, 32);
+            } else if (type === 'giyu') {
+                ctx.fillStyle = '#9e2b36'; ctx.fillRect(0,0,256,512); 
+                ctx.fillStyle = '#e8bb2e'; ctx.fillRect(256,0,256,512); 
+                ctx.fillStyle = '#227844'; 
+                for(let i=8; i<16; i++) for(let j=0; j<16; j++) if((i+j)%2===0) { ctx.beginPath(); ctx.moveTo(i*32+16, j*32); ctx.lineTo(i*32+32, j*32+16); ctx.lineTo(i*32+16, j*32+32); ctx.lineTo(i*32, j*32+16); ctx.fill(); }
+                ctx.fillStyle = '#d47222'; 
+                for(let i=8; i<16; i++) for(let j=0; j<16; j++) if((i+j)%2!==0) { ctx.beginPath(); ctx.moveTo(i*32+16, j*32+8); ctx.lineTo(i*32+24, j*32+16); ctx.lineTo(i*32+16, j*32+24); ctx.lineTo(i*32+8, j*32+16); ctx.fill(); }
+            } else {
+                ctx.fillStyle = '#eaddd5'; ctx.fillRect(0,0,512,512); ctx.strokeStyle = '#2b6fb5'; ctx.lineWidth = 8; 
+                for(let i=0; i<16; i++) { ctx.beginPath(); ctx.moveTo(0, i*32); ctx.lineTo(512, i*32); ctx.stroke(); }
+            }
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createCompassTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024; const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,1024,1024);
+            ctx.translate(512, 512); ctx.strokeStyle = '#88ccff'; ctx.lineWidth = 6; ctx.shadowColor = '#0088ff'; ctx.shadowBlur = 15;
+            for(let i=0; i<12; i++) { ctx.rotate(Math.PI/6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -480); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-30, -400); ctx.lineTo(0, -480); ctx.lineTo(30, -400); ctx.stroke(); }
+            ctx.beginPath(); ctx.arc(0, 0, 300, 0, Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 100, 0, Math.PI*2); ctx.stroke();
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createEffectTex(type) {
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 256; const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 1024, 256);
+            const buildWavePath = (offsetY, amp1, freq1, amp2, freq2, clawSize, clawFreq) => { ctx.beginPath(); ctx.moveTo(0, 256); for(let x=0; x<=1024; x+=2) { let y = offsetY + Math.sin(x*freq1)*amp1 + Math.sin(x*freq2)*amp2; let clawPhase = (x % clawFreq) / clawFreq; if(clawPhase < 0.4) y -= clawSize * Math.sin(clawPhase * Math.PI / 0.4); ctx.lineTo(x, y); } ctx.lineTo(1024, 256); ctx.lineTo(0, 256); ctx.closePath(); };
+            if (type === 'giyu') {
+                buildWavePath(40, 25, 0.012, 15, 0.035, 45, 180); ctx.fillStyle = '#050a14'; ctx.fill(); buildWavePath(55, 25, 0.012, 15, 0.035, 40, 180); ctx.fillStyle = '#ffffff'; ctx.fill(); buildWavePath(85, 20, 0.012, 10, 0.035, 25, 180); ctx.fillStyle = '#00c3ff'; ctx.fill(); buildWavePath(140, 15, 0.012, 8, 0.035, 0, 180); ctx.fillStyle = '#0033bb'; ctx.fill(); 
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5; ctx.beginPath(); for(let x=0; x<=1024; x+=5) { let y = 170 + Math.sin(x*0.012)*15; if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); } ctx.stroke(); ctx.strokeStyle = '#00ffff'; ctx.beginPath(); for(let x=0; x<=1024; x+=5) { let y = 200 + Math.sin(x*0.012)*15; if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); } ctx.stroke();
+            } else if (type === 'tanjiro') { 
+                buildWavePath(20, 40, 0.02, 25, 0.05, 70, 120); ctx.fillStyle = '#330000'; ctx.fill(); buildWavePath(40, 35, 0.02, 20, 0.05, 60, 120); ctx.fillStyle = '#ffaa00'; ctx.fill(); buildWavePath(70, 30, 0.02, 15, 0.05, 40, 120); ctx.fillStyle = '#ff3300'; ctx.fill(); buildWavePath(110, 20, 0.02, 10, 0.05, 0, 120); ctx.fillStyle = '#aa0000'; ctx.fill(); 
+            } else if (type === 'akaza') {
+                buildWavePath(40, 10, 0.05, 5, 0.1, 0, 100); ctx.fillStyle = '#110022'; ctx.fill(); buildWavePath(60, 15, 0.05, 8, 0.1, 0, 100); ctx.fillStyle = '#ffffff'; ctx.fill(); buildWavePath(90, 10, 0.05, 5, 0.1, 0, 100); ctx.fillStyle = '#ff33aa'; ctx.fill(); buildWavePath(140, 5, 0.05, 2, 0.1, 0, 100); ctx.fillStyle = '#0088ff'; ctx.fill(); 
+            }
+            const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.ClampToEdgeWrapping; return tex;
+        }
+
+        function createKanjiTexture(text, titleColor, glowColor) {
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 256; const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,1024,256);
+            ctx.font = '900 130px "Microsoft JhengHei", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+            ctx.lineWidth = 30; ctx.strokeStyle = glowColor; ctx.strokeText(text, 512, 128); ctx.lineWidth = 12; ctx.strokeStyle = '#ffffff'; ctx.strokeText(text, 512, 128);
+            ctx.fillStyle = titleColor; ctx.fillText(text, 512, 128); return new THREE.CanvasTexture(canvas);
+        }
+
+        let texDarkWood, texFloorWood, texCrimson, texPaper, texTatami, texRoof, texEffect, texCompass;
+        let charSkinTexMap = {}; 
+        let darkWoodMat, floorWoodMat, crimsonWoodMat, shojiPaperMat, tatamiMat, roofMat, lanternCoreMat;
+        let camera, scene, renderer, composer, outlinePass, bloodMoonLight, player, castleSystem, clock = new THREE.Clock();
+        
+        let previewTanjiro = null;
+        let mouseX = 0, mouseY = 0;
+
+        function updateProgress(percent, text) {
+            document.getElementById('progress-bar').style.width = `${percent}%`;
+            document.getElementById('progress-text').innerText = text;
+        }
+
+        async function performLoading() {
+            const yieldToBrowser = () => new Promise(r => setTimeout(r, 20)); 
+            
+            sfx = new SFXEngine();
+            toonGradientMap = createToonGradient(); 
+            
+            updateProgress(10, '建構角色骨架材質...'); await yieldToBrowser();
+            charSkinTexMap['tanjiro'] = createCharacterSkin('tanjiro');
+            charSkinTexMap['giyu'] = createCharacterSkin('giyu');
+            charSkinTexMap['akaza'] = createCharacterSkin('akaza');
+            texCompass = createCompassTexture();
+
+            updateProgress(35, '生成高階木紋...'); await yieldToBrowser();
+            texDarkWood = createWoodTex(0x2d1f18, 0x140c08); 
+            texFloorWood = createWoodTex(0x452f20, 0x24160d); 
+
+            updateProgress(60, '構築和室細節...'); await yieldToBrowser();
+            texCrimson = createWoodTex(0x6b1f13, 0x330c05);
+            texPaper = createPaperTex(); 
+            texTatami = createTatamiTex(); 
+            texRoof = createRoofTex();
+
+            updateProgress(80, '佈署無限城空間與卡通渲染特效...'); await yieldToBrowser();
+            
+            darkWoodMat = new THREE.MeshToonMaterial({ map: texDarkWood, bumpMap: texDarkWood, bumpScale: 0.004, gradientMap: toonGradientMap }); 
+            floorWoodMat = new THREE.MeshToonMaterial({ map: texFloorWood, bumpMap: texFloorWood, bumpScale: 0.002, gradientMap: toonGradientMap });  
+            crimsonWoodMat = new THREE.MeshToonMaterial({ map: texCrimson, bumpMap: texCrimson, bumpScale: 0.003, gradientMap: toonGradientMap }); 
+            shojiPaperMat = new THREE.MeshToonMaterial({ map: texPaper, emissive: 0x442200, emissiveIntensity: 0.4, transparent: true, opacity: 0.9, side: THREE.DoubleSide, gradientMap: toonGradientMap });
+            tatamiMat = new THREE.MeshToonMaterial({ map: texTatami, bumpMap: texTatami, bumpScale: 0.01, gradientMap: toonGradientMap }); 
+            roofMat = new THREE.MeshToonMaterial({ map: texRoof, bumpMap: texRoof, bumpScale: 0.02, gradientMap: toonGradientMap });
+            lanternCoreMat = new THREE.MeshToonMaterial({ color: 0xffeecc, emissive: 0xff5511, emissiveIntensity: 4.5, gradientMap: toonGradientMap });
+
+            initThreeScene();
+            castleSystem = new InfinityCastleSystem(scene);
+
+            requestAnimationFrame(animate);
+
+            updateProgress(100, '準備就緒！'); await yieldToBrowser();
+            
+            setTimeout(() => { 
+                document.getElementById('loading-screen').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loading-screen').style.display = 'none';
+                    document.getElementById('preview-screen').style.display = 'flex';
+                    document.getElementById('preview-screen').style.opacity = '1';
+                }, 800);
+
+                isPreviewMode = true;
+                isPaused = false; 
+
+                camera.position.set(0, 150, 450);
+                camera.lookAt(0, 50, 0);
+                
+                if(!previewTanjiro) {
+                    let previewChar = selectedChar ? selectedChar : ROSTERS.tanjiro;
+                    previewTanjiro = createAvatarModel(previewChar);
+                    previewTanjiro.charId = previewChar.id;
+                    previewTanjiro.model.position.set(0, -2, 0);
+                    previewTanjiro.model.scale.set(8, 8, 8); 
+                    scene.add(previewTanjiro.model);
+                }
+
+                if (outlinePass) outlinePass.selectedObjects = [previewTanjiro.model];
+                document.addEventListener('mousemove', onPreviewMouseMove);
+
+                document.getElementById('preview-screen').onclick = () => {
+                    document.getElementById('preview-screen').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('preview-screen').style.display = 'none';
+                        document.getElementById('home-screen').style.display = 'flex'; 
+                        document.getElementById('home-screen').style.opacity = '1';
+                        window.updateCarousel(); 
+                    }, 500);
+                };
+            }, 500);
+        }
+
+        function createAvatarModel(charData) {
+            const group = new THREE.Group(); const spinGroup = new THREE.Group(); group.add(spinGroup);
+            const segs = 128; 
+            const skinC = (charData.id === 'akaza') ? 0xddddff : 0xffddcc;
+            const hairC = (charData.id === 'tanjiro') ? 0x551100 : (charData.id === 'giyu' ? 0x111122 : 0xff55aa);
+            const wC = charData.colors.wpn;
+
+            const skinMat = new THREE.MeshToonMaterial({ color: skinC, gradientMap: toonGradientMap });
+            const hairMat = new THREE.MeshToonMaterial({ color: hairC, gradientMap: toonGradientMap });
+            const clothMat = new THREE.MeshToonMaterial({ color: 0x151515, gradientMap: toonGradientMap }); 
+            const haoriMat = new THREE.MeshToonMaterial({ map: charSkinTexMap[charData.id], side: THREE.DoubleSide, gradientMap: toonGradientMap });
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(2.8, segs, segs), skinMat); head.position.y = 15; spinGroup.add(head);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: (charData.id==='akaza')? 0xffee00 : 0x111111 });
+            const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), eyeMat); eyeL.position.set(-1.0, 15.2, 2.5); spinGroup.add(eyeL);
+            const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), eyeMat); eyeR.position.set(1.0, 15.2, 2.5); spinGroup.add(eyeR);
+
+            if (charData.id === 'tanjiro') {
+                const scarMat = new THREE.MeshBasicMaterial({color: 0x661100});
+                const scar = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.2), scarMat); scar.position.set(-1.2, 16.5, 2.5); scar.rotation.set(-0.2, -0.4, 0.3); spinGroup.add(scar);
+                const earringMat = new THREE.MeshBasicMaterial({color: 0xffffff});
+                const earringGeo = new THREE.BoxGeometry(0.4, 1.2, 0.05);
+                const eL = new THREE.Mesh(earringGeo, earringMat); eL.position.set(-3.0, 13.5, 0); spinGroup.add(eL);
+                const eR = new THREE.Mesh(earringGeo, earringMat); eR.position.set(3.0, 13.5, 0); spinGroup.add(eR);
+                const boxMat = new THREE.MeshToonMaterial({ map: texDarkWood, gradientMap: toonGradientMap });
+                const box = new THREE.Mesh(new THREE.BoxGeometry(4.5, 8.0, 3.5), boxMat); box.position.set(0, 10, -3.0); spinGroup.add(box);
+
+                for(let i=0; i<25; i++) {
+                    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.6, 3.5, 8), hairMat);
+                    spike.position.set((Math.random()-0.5)*3.5, 16.5 + Math.random()*1.5, (Math.random()-0.5)*3.5);
+                    spike.rotation.set(-Math.random()*0.5, (Math.random()-0.5)*1, (Math.random()-0.5)*1);
+                    spinGroup.add(spike);
+                }
+            } else if (charData.id === 'giyu') {
+                const tail = new THREE.Mesh(new THREE.ConeGeometry(1.2, 5.0, 16), hairMat); tail.position.set(0, 14, -3.0); tail.rotation.x = -Math.PI/4; spinGroup.add(tail);
+                for(let i=0; i<20; i++) {
+                    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.6, 3.5, 8), hairMat);
+                    spike.position.set((Math.random()-0.5)*3.5, 16.5 + Math.random()*1.5, (Math.random()-0.5)*3.5);
+                    spike.rotation.set((Math.random()-0.5)*2, (Math.random()-0.5)*2, (Math.random()-0.5)*2);
+                    spinGroup.add(spike);
+                }
+            } else if (charData.id === 'akaza') {
+                for(let i=0; i<60; i++) {
+                    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.5, 6), hairMat);
+                    let lat = Math.random() * Math.PI/2, lon = Math.random() * Math.PI*2;
+                    spike.position.set(2.5 * Math.sin(lat) * Math.cos(lon), 15 + 2.5 * Math.cos(lat), 2.5 * Math.sin(lat) * Math.sin(lon));
+                    spike.lookAt(new THREE.Vector3(0, 15, 0)); spike.rotation.x -= Math.PI/2;
+                    spinGroup.add(spike);
+                }
+            }
+
+            const torsoMat = charData.id === 'akaza' ? haoriMat : clothMat; 
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.5, 9, segs), torsoMat); torso.position.y = 9; spinGroup.add(torso);
+            
+            if(charData.id !== 'akaza') {
+                const haori = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 3.2, 10, segs, 1, true, 0, Math.PI*1.5), haoriMat);
+                haori.position.set(0, 8.5, 0.5); spinGroup.add(haori); 
+            } else {
+                const vestMat = new THREE.MeshToonMaterial({color: 0xaa1144, side: THREE.DoubleSide, gradientMap: toonGradientMap});
+                const vest = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 4, segs, 1, true, 0, Math.PI*1.2), vestMat);
+                vest.position.set(0, 11, 0); spinGroup.add(vest);
+            }
+
+            const createLimb = (r, len, yOffset, matLimb, matSleeve, isLeg=false) => {
+                const pivot = new THREE.Group(); pivot.position.y = yOffset;
+                if(charData.id === 'akaza' && isLeg) {
+                    const baggy = new THREE.Mesh(new THREE.CylinderGeometry(r*1.8, r*1.0, len, segs), new THREE.MeshToonMaterial({color: 0xeeeeee, gradientMap: toonGradientMap}));
+                    baggy.position.y = -len/2; pivot.add(baggy);
+                } else {
+                    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(r*1.2, r*1.1, len/2, segs), matSleeve); sleeve.position.y = -len/4; pivot.add(sleeve);
+                    const skin = new THREE.Mesh(new THREE.CylinderGeometry(r*0.9, r*0.8, len/2, segs), matLimb); skin.position.y = -len*0.75; pivot.add(skin);
+                }
+                const joint = new THREE.Mesh(new THREE.SphereGeometry(r*1.0, segs, segs), matSleeve); joint.position.y = -len/2; pivot.add(joint);
+                const extremity = new THREE.Mesh(new THREE.SphereGeometry(r*0.9, segs, segs), skinMat); extremity.position.y = -len; pivot.add(extremity);
+                
+                if(charData.id === 'akaza') {
+                    const beadMat = new THREE.MeshToonMaterial({color: 0x4411aa, gradientMap: toonGradientMap});
+                    const beads = new THREE.Mesh(new THREE.TorusGeometry(r*1.1, 0.2, 8, 16), beadMat);
+                    beads.position.y = isLeg ? -len + 0.5 : -len + 0.8;
+                    beads.rotation.x = Math.PI/2; pivot.add(beads);
+                }
+                return pivot;
+            }
+            
+            const armMat = charData.id === 'akaza' ? skinMat : clothMat; 
+            const armL = createLimb(0.8, 7, 13, skinMat, armMat); armL.position.x = -2.5; spinGroup.add(armL);
+            const armR = createLimb(0.8, 7, 13, skinMat, armMat); armR.position.x = 2.5; spinGroup.add(armR);
+            const legL = createLimb(1.1, 8, 4.5, skinMat, clothMat, true); legL.position.x = -1.2; spinGroup.add(legL);
+            const legR = createLimb(1.1, 8, 4.5, skinMat, clothMat, true); legR.position.x = 1.2; spinGroup.add(legR);
+
+            const trackPoint = new THREE.Object3D();
+
+            if(charData.id !== 'akaza') {
+                const bladeMat = new THREE.MeshToonMaterial({ color: wC, emissive: wC, emissiveIntensity: 1.0, gradientMap: toonGradientMap });
+                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 3, 32), clothMat); handle.position.set(0, -7.5, 1); handle.rotation.x = Math.PI/2; armR.add(handle);
+                const blade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 12), bladeMat); blade.position.set(0, -7.5, 8.6); armR.add(blade);
+                trackPoint.position.set(0, -7.5, 8.6); 
+                armR.add(trackPoint);
+            } else {
+                trackPoint.position.set(0, -7, 0); 
+                armR.add(trackPoint);
+            }
+
+            return { model: group, spinGroup: spinGroup, limbs: { armL, armR, legL, legR }, headNode: head, trackPoint: trackPoint };
+        }
+
+        function onPreviewMouseMove(e) {
+            if (!isPreviewMode) return;
+            mouseX = (e.clientX / window.innerWidth - 0.5) * 1.5;
+            mouseY = (e.clientY / window.innerHeight - 0.5) * 0.8;
+        }
+
+        window.previewHoverChar = (id) => {
+            if (!isPreviewMode) return; 
+            if (previewTanjiro && previewTanjiro.charId === id) return; 
+            
+            if (previewTanjiro) {
+                scene.remove(previewTanjiro.model);
+            }
+            
+            let previewChar = ROSTERS[id];
+            previewTanjiro = createAvatarModel(previewChar);
+            previewTanjiro.charId = id; 
+            previewTanjiro.model.position.set(0, -2, 0);
+            previewTanjiro.model.scale.set(8, 8, 8); 
+            scene.add(previewTanjiro.model);
+            
+            if (outlinePass) outlinePass.selectedObjects = [previewTanjiro.model];
+        };
+
+        window.enterCharSelect = () => {
+            document.getElementById('home-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('home-screen').style.display = 'none';
+                document.getElementById('ui-layer').style.display = 'flex';
+                document.getElementById('char-select').style.display = 'block';
+                setTimeout(() => { document.getElementById('ui-layer').style.opacity = '1'; }, 50);
+            }, 500);
+        }
+
+        window.selectChar = function(id) {
+            selectedChar = ROSTERS[id];
+            texEffect = createEffectTex(selectedChar.id);
+
+            const cards = document.querySelectorAll('.carousel-card');
+            if(cards.length > 4) {
+                const charCardP = cards[4].querySelector('.card-info p');
+                if(charCardP) charCardP.innerText = `目前選擇: ${selectedChar.name}`;
+            }
+
+            document.getElementById('ui-layer').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('ui-layer').style.display = 'none';
+                document.getElementById('home-screen').style.display = 'flex';
+                setTimeout(() => { document.getElementById('home-screen').style.opacity = '1'; }, 50);
+                window.updateCarousel();
+            }, 500);
+        };
+
+        function buildSkillBar() {
+            const bar = document.getElementById('skill-bar');
+            bar.innerHTML = '';
+            const prefix = selectedChar.prefix;
+            
+            for(let i=1; i<=10; i++) {
+                const keyNum = i === 10 ? 0 : i;
+                const slot = document.createElement('div');
+                slot.className = 'skill-slot';
+                slot.id = `skill-slot-${keyNum}`;
+                slot.style.backgroundImage = `url('${prefix}${i}.jpg')`;
+                slot.innerHTML = `<div class="skill-key">${keyNum}</div>`;
+                bar.appendChild(slot);
+            }
+        }
+
+        function highlightSkillSlot(type) {
+            if (type === 0) return; 
+            const keyNum = type === 10 ? 0 : type;
+            const slot = document.getElementById(`skill-slot-${keyNum}`);
+            if(slot) {
+                document.querySelectorAll('.skill-slot').forEach(el => el.classList.remove('active'));
+                slot.classList.add('active');
+                setTimeout(() => slot.classList.remove('active'), 500);
+            }
+        }
+
+        function startGamePlay() {
+            isPreviewMode = false;
+            document.removeEventListener('mousemove', onPreviewMouseMove);
+
+            if (previewTanjiro) {
+                scene.remove(previewTanjiro.model);
+                previewTanjiro = null;
+            }
+
+            isGamePlaying = true;
+            isPaused = false;
+            player = new PlayerPhysicsController(camera, scene, document.body, castleSystem);
+            player.wrapper.position.set(0, 6000, 350); 
+            
+            window.applyDeviceMode(); // 套用裝置模式 (決定是否鎖下游標或顯示虛擬搖桿)
+            
+            if (outlinePass) outlinePass.selectedObjects = [player.stickman.model];
+
+            buildSkillBar();
+            document.getElementById('skill-bar').style.display = 'flex';
+        }
+
+        class CombatSystem {
+            constructor(scene, camera) {
+                this.scene = scene; this.camera = camera; this.slashes = []; this.kanjis = []; this.shockwaves = []; this.customEffects = [];
+                
+                this.solidSlashMaterial = new THREE.ShaderMaterial({
+                    uniforms: { tWater: { value: texEffect }, uOffset: { value: 0.0 } },
+                    vertexShader: `varying vec2 vUv; void main() { vUv = uv; float taper = smoothstep(0.0, 0.5, uv.x) * smoothstep(1.0, 0.5, uv.x); vec3 pos = position; pos.x *= (0.02 + 0.98 * taper); pos.z *= (0.02 + 0.98 * taper); gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0); }`,
+                    fragmentShader: `uniform sampler2D tWater; uniform float uOffset; varying vec2 vUv; void main() { vec2 uv = vUv; uv.x = fract(uv.x - uOffset); vec4 texColor = texture2D(tWater, uv); if (texColor.a < 0.15 || vUv.y < 0.05 || vUv.y > 0.95) discard; gl_FragColor = vec4(texColor.rgb, 1.0); }`,
+                    transparent: false, alphaTest: 0.5, depthWrite: true, side: THREE.DoubleSide
+                });
+
+                this.glowSlashMaterial = new THREE.ShaderMaterial({
+                    uniforms: { tWater: { value: texEffect }, uOffset: { value: 0.0 }, uOpacity: { value: 1.0 } },
+                    vertexShader: `varying vec2 vUv; void main() { vUv = uv; float taper = smoothstep(0.0, 0.5, uv.x) * smoothstep(1.0, 0.5, uv.x); vec3 pos = position; pos.x *= (0.02 + 0.98 * taper); pos.z *= (0.02 + 0.98 * taper); gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0); }`,
+                    fragmentShader: `uniform sampler2D tWater; uniform float uOffset; uniform float uOpacity; varying vec2 vUv; void main() { vec2 uv = vUv; uv.x = fract(uv.x - uOffset); vec4 texColor = texture2D(tWater, uv); float edgeFade = smoothstep(0.0, 0.05, vUv.x) * smoothstep(1.0, 0.95, vUv.x); gl_FragColor = vec4(texColor.rgb, texColor.a * uOpacity * edgeFade) * vec4(1.5, 1.5, 1.5, 1.0); }`,
+                    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+                });
+
+                this.particleCount = 15000; 
+                this.particleGeo = new THREE.BufferGeometry();
+                this.pPositions = new Float32Array(this.particleCount * 3); this.pVelocities = new Float32Array(this.particleCount * 3);
+                this.pLifetimes = new Float32Array(this.particleCount); this.pSizes = new Float32Array(this.particleCount); this.pTypes = new Float32Array(this.particleCount); 
+                for(let i=0; i<this.particleCount; i++) this.pLifetimes[i] = 0; 
+                this.particleGeo.setAttribute('position', new THREE.BufferAttribute(this.pPositions, 3)); this.particleGeo.setAttribute('size', new THREE.BufferAttribute(this.pSizes, 1)); this.particleGeo.setAttribute('pType', new THREE.BufferAttribute(this.pTypes, 1));
+                
+                const particleShader = new THREE.ShaderMaterial({
+                    uniforms: { colorWater: { value: new THREE.Color(selectedChar ? selectedChar.colors.pWater : 0xffffff) }, outlineWater: { value: new THREE.Color(selectedChar ? selectedChar.colors.pOutline : 0x000000) }, colorInk: { value: new THREE.Color(0x000000) } },
+                    vertexShader: `attribute float size; attribute float pType; varying float vAlpha; varying float vType; void main() { vAlpha = 1.0; vType = pType; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_PointSize = size * (300.0 / -mvPosition.z); gl_Position = projectionMatrix * mvPosition; }`,
+                    fragmentShader: `uniform vec3 colorWater; uniform vec3 outlineWater; uniform vec3 colorInk; varying float vAlpha; varying float vType; void main() { vec2 coord = gl_PointCoord - vec2(0.5); float dist = length(coord); if (dist > 0.5) discard; vec3 finalColor; if (vType > 0.5) { finalColor = colorInk; } else { float innerDist = length(coord - vec2(0.06, 0.06)); float isOutline = smoothstep(0.25, 0.45, innerDist); finalColor = mix(colorWater, outlineWater, isOutline); } float alpha = smoothstep(0.5, 0.45, dist); gl_FragColor = vec4(finalColor * 2.0, alpha * vAlpha); }`,
+                    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+                });
+                this.particleSystem = new THREE.Points(this.particleGeo, particleShader); this.scene.add(this.particleSystem);
+
+                this.debrisCount = 500;
+                const dGeo = new THREE.BoxGeometry(4, 4, 4);
+                const dMat = new THREE.MeshToonMaterial({ color: 0x3d2817, gradientMap: toonGradientMap });
+                this.debrisMesh = new THREE.InstancedMesh(dGeo, dMat, this.debrisCount);
+                this.debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                this.debrisMesh.castShadow = true;
+                this.scene.add(this.debrisMesh);
+                
+                this.debrisData = Array.from({length: this.debrisCount}, () => ({
+                    life: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), rot: new THREE.Euler(), aVel: new THREE.Vector3()
+                }));
+                this.debrisDummy = new THREE.Object3D();
+
+                this.uiName = document.getElementById('attack-name'); 
+                
+                const fxSegs = 128; 
+                this.geos = {
+                    crescent: new THREE.CylinderGeometry(35, 35, 55, fxSegs, 1, true, 0, Math.PI * 1.5),
+                    wheel: new THREE.TorusGeometry(35, 12, 16, fxSegs),
+                    cone: new THREE.ConeGeometry(25, 120, fxSegs, 1, true),
+                    sphere: new THREE.SphereGeometry(15, 32, 32)
+                };
+            }
+
+            spawnKanji3D(text, modelPos, camDir, camQuat) {
+                const tex = createKanjiTexture(text, selectedChar.colors.title, selectedChar.colors.glow);
+                const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+                const mesh = new THREE.Mesh(new THREE.PlaneGeometry(150, 38), mat); mesh.position.copy(modelPos).add(camDir.clone().multiplyScalar(45)); mesh.position.y += 20; mesh.quaternion.copy(camQuat); mesh.rotateZ((Math.random() - 0.5) * 0.5); mesh.scale.set(0.1, 0.1, 0.1); this.scene.add(mesh); this.kanjis.push({ mesh: mesh, life: 1.8, maxLife: 1.8 });
+            }
+
+            showName(text, modelPos, camDir, camQuat) {
+                if(this.uiName) {
+                    this.uiName.style.color = selectedChar.colors.title; this.uiName.style.textShadow = `0 0 30px ${selectedChar.colors.glow}, 0 0 10px #fff`;
+                    this.uiName.innerText = text; this.uiName.style.opacity = 1; this.uiName.style.transform = "translateX(-50%) scale(1.1)"; clearTimeout(this.nameTimeout);
+                    setTimeout(() => { this.uiName.style.transform = "translateX(-50%) scale(1)"; }, 100); this.nameTimeout = setTimeout(() => { this.uiName.style.opacity = 0; }, 2500); 
+                }
+                this.spawnKanji3D(text, modelPos, camDir, camQuat);
+            }
+
+            spawnDebris(pos, count, power=1.0) {
+                let spawned = 0;
+                for(let i=0; i<this.debrisCount; i++) {
+                    if(this.debrisData[i].life <= 0) {
+                        let d = this.debrisData[i];
+                        d.life = 0.5 + Math.random() * 0.8; 
+                        d.pos.copy(pos).add(new THREE.Vector3((Math.random()-0.5)*20, (Math.random()-0.5)*20, (Math.random()-0.5)*20));
+                        d.vel.set((Math.random()-0.5)*600*power, Math.random()*800*power + 200, (Math.random()-0.5)*600*power);
+                        d.rot.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                        d.aVel.set((Math.random()-0.5)*15, (Math.random()-0.5)*15, (Math.random()-0.5)*15);
+                        spawned++;
+                        if(spawned >= count) break;
+                    }
+                }
+            }
+
+            spawnSplash(pos, dir, count, spread=1, power=1) {
+                let spawned = 0;
+                for(let i=0; i<this.particleCount; i++) {
+                    if (this.pLifetimes[i] <= 0) {
+                        this.pPositions[i*3] = pos.x + (Math.random()-0.5)*35; this.pPositions[i*3+1] = pos.y + (Math.random()-0.5)*35; this.pPositions[i*3+2] = pos.z + (Math.random()-0.5)*35;
+                        this.pVelocities[i*3] = dir.x * 600 * power + (Math.random()-0.5)*400*spread; this.pVelocities[i*3+1] = dir.y * 600 * power + (Math.random()-0.5)*400*spread + 100; this.pVelocities[i*3+2] = dir.z * 600 * power + (Math.random()-0.5)*400*spread;
+                        this.pSizes[i] = 20 + Math.random() * 50; this.pLifetimes[i] = 0.5 + Math.random() * 1.0; this.pTypes[i] = selectedChar.id === 'akaza' ? 0.0 : (Math.random() > 0.8 ? 1.0 : 0.0);
+                        spawned++; if (spawned >= count) break;
+                    }
+                }
+                if(Math.random() > 0.3) this.spawnDebris(pos, Math.floor(count/3), power);
+            }
+
+            createShockwave(pos, camQuat, scale, isFlat=false) {
+                const geo = isFlat ? new THREE.PlaneGeometry(150, 150) : new THREE.TorusGeometry(25, 2.0, 32, 128);
+                const mat = new THREE.MeshBasicMaterial({ color: selectedChar.colors.shock, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+                if(isFlat && selectedChar.id === 'giyu') mat.map = texEffect; 
+                const mesh = new THREE.Mesh(geo, mat); mesh.position.copy(pos); mesh.quaternion.copy(camQuat); if(isFlat) mesh.rotateX(-Math.PI/2); mesh.scale.set(0.1, 0.1, 0.1);
+                this.scene.add(mesh); this.shockwaves.push({ mesh: mesh, life: 1.0, maxLife: 1.0, maxScale: scale });
+                
+                this.spawnDebris(pos, 40, scale / 8.0);
+            }
+
+            spawnGenericEffect(geoKey, scale, life, offset, rotOff, customUpdate = null, modelPos, camDir, camQuat, playSound=true) {
+                const geo = this.geos[geoKey];
+                const coreMat = this.solidSlashMaterial.clone(); coreMat.uniforms = THREE.UniformsUtils.clone(this.solidSlashMaterial.uniforms); 
+                const coreMesh = new THREE.Mesh(geo, coreMat);
+                
+                const glowMat = this.glowSlashMaterial.clone(); glowMat.uniforms = THREE.UniformsUtils.clone(this.glowSlashMaterial.uniforms);
+                const glowMesh = new THREE.Mesh(geo, glowMat); glowMesh.scale.multiplyScalar(1.15);
+
+                const group = new THREE.Group(); group.add(coreMesh); group.add(glowMesh);
+                group.position.copy(modelPos).add(camDir.clone().multiplyScalar(15)).add(offset); group.position.y += 10; group.quaternion.copy(camQuat); group.rotateX(rotOff.x); group.rotateY(rotOff.y); group.rotateZ(rotOff.z); group.scale.set(scale.x, scale.y, scale.z);
+                
+                const pLight = new THREE.PointLight(selectedChar.colors.pWater, 5.0, 500, 2); group.add(pLight); this.scene.add(group);
+                this.slashes.push({ mesh: group, light: pLight, maxLife: life, life: life, startScale: new THREE.Vector3().copy(scale), texOffset: Math.random(), customUpdate: customUpdate });
+                
+                if(geoKey === 'crescent' || geoKey === 'wheel') this.spawnSplash(group.position, camDir, 60, 3.0, 1.5);
+                
+                if(playSound) {
+                    if (selectedChar.id === 'giyu') sfx.playWater(); else if (selectedChar.id === 'tanjiro') sfx.playFire(); else sfx.playImpact();
+                    sfx.playSlash();
+                }
+                return group;
+            }
+
+            triggerAttack(type, modelPos, camDir, camQuat) {
+                const attacks = selectedChar.attacks;
+                if (type === 0) { this.spawnGenericEffect('crescent', new THREE.Vector3(1.5, 0.8, 1.5), 0.35, new THREE.Vector3(0,-5,0), new THREE.Vector3(Math.PI/2, (Math.random()-0.5)*1, 0), (s, dt) => { s.mesh.rotateZ(-dt * 15); s.mesh.translateY(-dt * 80); }, modelPos, camDir, camQuat); return; }
+                this.showName(attacks[type-1] || "奧義", modelPos, camDir, camQuat);
+                
+                if (selectedChar.id === 'giyu') {
+                    switch(type) {
+                        case 1: this.spawnGenericEffect('crescent', new THREE.Vector3(3.0, 1.5, 3.0), 0.5, new THREE.Vector3(0, 0, -10), new THREE.Vector3(Math.PI/2, 0, 0), (s, dt) => { s.mesh.rotateZ(-dt * 15); s.mesh.translateY(-dt * 100); }, modelPos, camDir, camQuat); break;
+                        case 2: window.playerPhysics.velocity.y = 800; window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(400)); this.spawnGenericEffect('wheel', new THREE.Vector3(2.5, 2.5, 2.5), 0.8, new THREE.Vector3(0, 10, -10), new THREE.Vector3(0, 0, Math.PI/2), (s, dt) => { s.mesh.rotateX(-dt * 20); s.mesh.translateY(-dt * 60); }, modelPos, camDir, camQuat); break;
+                        case 3: 
+                            window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(400).applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/3));
+                            setTimeout(() => this.spawnGenericEffect('crescent', new THREE.Vector3(2.0, 1.0, 2.0), 0.4, new THREE.Vector3(-20,-5,0), new THREE.Vector3(Math.PI/2, 0.8, 0), (s, dt) => s.mesh.rotateZ(-dt*15), window.playerPhysics.stickman.model.position.clone(), camDir, camQuat), 0);
+                            setTimeout(() => { window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(400).applyAxisAngle(new THREE.Vector3(0,1,0), -Math.PI/3)); this.spawnGenericEffect('crescent', new THREE.Vector3(2.0, 1.0, 2.0), 0.4, new THREE.Vector3(20, 5,-10), new THREE.Vector3(Math.PI/2, -0.8, 0), (s, dt) => s.mesh.rotateZ(dt*15), window.playerPhysics.stickman.model.position.clone(), camDir, camQuat); }, 250); break;
+                        case 4: window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(1000)); this.spawnGenericEffect('crescent', new THREE.Vector3(3.0, 1.2, 3.0), 0.4, new THREE.Vector3(-10, 10, 0), new THREE.Vector3(Math.PI/2, 0.8, 0), (s,dt) => s.mesh.rotateZ(-dt*12), modelPos, camDir, camQuat); break;
+                        case 5: this.spawnGenericEffect('crescent', new THREE.Vector3(4.0, 0.5, 4.0), 1.2, new THREE.Vector3(0, 20, -10), new THREE.Vector3(Math.PI/2, 0, Math.PI/2), (s,dt) => { s.mesh.rotateZ(-dt*2); s.mesh.translateY(-dt*20); }, modelPos, camDir, camQuat); break; 
+                        case 6: this.spawnGenericEffect('wheel', new THREE.Vector3(3.5, 3.5, 3.5), 1.0, new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.PI/2, 0, 0), (s, dt) => { s.mesh.rotateZ(dt * 25); s.mesh.scale.addScalar(dt*2); }, modelPos, camDir, camQuat); break; 
+                        case 7: this.spawnGenericEffect('cone', new THREE.Vector3(1.0, 1.0, 1.0), 0.3, new THREE.Vector3(0, 0, -20), new THREE.Vector3(Math.PI/2, 0, 0), (s, dt) => { s.mesh.translateY(-dt * 800); s.mesh.scale.z += dt*10; }, modelPos, camDir, camQuat); break; 
+                        case 8: window.playerPhysics.velocity.y = -1200; this.spawnGenericEffect('crescent', new THREE.Vector3(4.5, 3.5, 5.0), 0.6, new THREE.Vector3(0, 30, -15), new THREE.Vector3(Math.PI/2, 0, Math.PI/2), (s, dt) => s.mesh.translateZ(-dt * 400), modelPos, camDir, camQuat); setTimeout(() => { window.playerPhysics.addCameraShake(10.0); this.spawnSplash(modelPos, new THREE.Vector3(0, 1, 0), 600, 5.0, 2.5); this.createShockwave(modelPos, camQuat, 8.0); }, 150); break;
+                        case 9: for(let i=0; i<6; i++) { setTimeout(() => { window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(400).applyAxisAngle(new THREE.Vector3(0,1,0), (Math.random()-0.5)*2)); this.spawnGenericEffect('crescent', new THREE.Vector3(1.5, 1.0, 1.5), 0.3, new THREE.Vector3((Math.random()-0.5)*10, 0, -5), new THREE.Vector3(Math.PI/2, (Math.random()-0.5)*1.5, 0), (s,dt) => { s.mesh.translateY(-dt*200); }, window.playerPhysics.stickman.model.position.clone(), camDir, camQuat); }, i * 150); } break;
+                        case 10: 
+                            sfx.playNagi();
+                            window.playerPhysics.velocity.set(0,0,0);
+                            this.createShockwave(modelPos.clone().add(new THREE.Vector3(0,-14,0)), camQuat, 15.0, true); 
+                            for(let i=0; i<25; i++) { setTimeout(() => { 
+                                const flash = new THREE.PointLight(0xffffff, 12.0, 600); flash.position.copy(modelPos).add(new THREE.Vector3((Math.random()-0.5)*180, (Math.random()-0.5)*60, (Math.random()-0.5)*180)); this.scene.add(flash);
+                                setTimeout(()=>this.scene.remove(flash), 50); this.spawnSplash(flash.position, new THREE.Vector3(0,1,0), 30, 2.0, 0.5); 
+                            }, i * 120); } break;
+                    }
+                } else if (selectedChar.id === 'tanjiro') {
+                    switch(type) {
+                        case 1: window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(500)); this.spawnGenericEffect('wheel', new THREE.Vector3(2.5, 2.5, 2.5), 0.6, new THREE.Vector3(0, 0, -10), new THREE.Vector3(Math.PI/2, 0, 0), (s, dt) => { s.mesh.rotateZ(-dt * 20); s.mesh.scale.addScalar(dt*2); }, modelPos, camDir, camQuat); break;
+                        case 2: window.playerPhysics.velocity.y = 800; this.spawnGenericEffect('wheel', new THREE.Vector3(3.5, 3.5, 3.5), 0.6, new THREE.Vector3(0, 10, -5), new THREE.Vector3(0, 0, Math.PI/2), (s, dt) => { s.mesh.rotateX(-dt * 20); s.mesh.translateY(-dt * 60); }, modelPos, camDir, camQuat); break;
+                        case 3: this.spawnGenericEffect('crescent', new THREE.Vector3(3.0, 1.0, 3.0), 0.5, new THREE.Vector3(-15,0,0), new THREE.Vector3(Math.PI/2, 0.5, 0), (s,dt)=>s.mesh.rotateZ(-dt*15), modelPos, camDir, camQuat); setTimeout(() => this.spawnGenericEffect('crescent', new THREE.Vector3(3.0, 1.0, 3.0), 0.5, new THREE.Vector3(15,0,0), new THREE.Vector3(Math.PI/2, -0.5, 0), (s,dt)=>s.mesh.rotateZ(dt*15), modelPos, camDir, camQuat), 200); break;
+                        case 4: 
+                            window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(800).applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2));
+                            const clone = player.stickman.model.clone(); clone.position.copy(modelPos); 
+                            clone.traverse(c=>{if(c.isMesh) c.material = new THREE.MeshBasicMaterial({color: 0xff3300, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending});}); 
+                            this.scene.add(clone);
+                            this.customEffects.push({mesh: clone, life: 1.0, maxLife: 1.0, update: (e,dt)=>{
+                                e.mesh.traverse(c => {
+                                    if(c.isMesh && c.material) { c.material.opacity = 0.8 * (e.life / e.maxLife); }
+                                });
+                            }}); break;
+                        case 5: window.playerPhysics.velocity.y = 600; window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(600)); this.spawnGenericEffect('wheel', new THREE.Vector3(2.5, 2.5, 2.5), 0.6, new THREE.Vector3(0, 10, -10), new THREE.Vector3(0, 0, Math.PI/2), (s, dt) => { s.mesh.rotateX(-dt * 25); s.mesh.translateY(-dt * 80); }, modelPos, camDir, camQuat); break;
+                        case 6: this.spawnGenericEffect('crescent', new THREE.Vector3(4.0, 0.5, 4.0), 0.8, new THREE.Vector3(0, 0, -20), new THREE.Vector3(Math.PI/2, 0, 0), (s,dt) => { s.mesh.scale.x = 4.0 + Math.sin(s.life*20)*2.0; s.mesh.translateY(-dt*150); }, modelPos, camDir, camQuat); break;
+                        case 7: this.spawnGenericEffect('cone', new THREE.Vector3(2.0, 2.0, 2.0), 0.4, new THREE.Vector3(0, 0, -10), new THREE.Vector3(Math.PI/2, 0, 0), (s,dt) => { s.mesh.scale.addScalar(dt*5); s.mesh.translateY(-dt*300); }, modelPos, camDir, camQuat); break;
+                        case 8: window.playerPhysics.velocity.y = 800; this.spawnGenericEffect('wheel', new THREE.Vector3(4.0, 4.0, 4.0), 0.6, new THREE.Vector3(0, 20, 0), new THREE.Vector3(0, 0, Math.PI/4), (s,dt) => { s.mesh.rotateX(-dt*20); }, modelPos, camDir, camQuat); break;
+                        case 9: window.playerPhysics.velocity.y = 500; window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(-300)); this.spawnGenericEffect('crescent', new THREE.Vector3(3.5, 1.5, 3.5), 0.5, new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.PI/2, 0, 0), (s,dt) => { s.mesh.rotateZ(-dt*20); }, modelPos, camDir, camQuat); break;
+                        case 10: 
+                            window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(800)); 
+                            this.spawnGenericEffect('crescent', new THREE.Vector3(5.5, 2.0, 5.5), 0.8, new THREE.Vector3(0, 5, -10), new THREE.Vector3(Math.PI/2, 0.5, 0), (s,dt) => { s.mesh.rotateZ(-dt*20); s.mesh.translateY(-dt*200); }, modelPos, camDir, camQuat); 
+                            setTimeout(() => { window.playerPhysics.addCameraShake(15.0); window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(1200)); this.spawnGenericEffect('wheel', new THREE.Vector3(6.0, 6.0, 6.0), 1.0, new THREE.Vector3(0, -5, -20), new THREE.Vector3(0, 0, Math.PI/2), (s,dt) => { s.mesh.rotateX(-dt*25); s.mesh.translateY(-dt*250); }, window.playerPhysics.stickman.model.position.clone(), camDir, camQuat); this.createShockwave(window.playerPhysics.stickman.model.position.clone(), camQuat, 12.0); }, 500); break;
+                    }
+                } else if (selectedChar.id === 'akaza') {
+                    switch(type) {
+                        case 1: 
+                            window.playerPhysics.velocity.set(0,0,0);
+                            const decalMat = new THREE.MeshBasicMaterial({map: texCompass, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide});
+                            const decal = new THREE.Mesh(new THREE.PlaneGeometry(100,100), decalMat); decal.position.copy(modelPos); decal.position.y -= 13; decal.rotateX(-Math.PI/2); this.scene.add(decal);
+                            this.customEffects.push({mesh: decal, life: 3.0, maxLife: 3.0, update: (e,dt)=>{
+                                e.mesh.rotateZ(dt); 
+                                if(e.mesh.material) { e.mesh.material.opacity = Math.sin(Math.PI * (e.life/e.maxLife)); }
+                            }}); break;
+                        case 2: for(let i=0; i<6; i++) { setTimeout(() => { this.spawnGenericEffect('sphere', new THREE.Vector3(0.5, 0.5, 0.5), 0.5, new THREE.Vector3((Math.random()-0.5)*20, (Math.random()-0.5)*20, -10), new THREE.Vector3(0, 0, 0), (s,dt) => { s.mesh.translateZ(-dt*500); }, modelPos, camDir, camQuat); }, i * 80); } break;
+                        case 3: for(let i=0; i<20; i++) { setTimeout(() => { this.spawnGenericEffect('sphere', new THREE.Vector3(0.8, 0.8, 0.8), 0.4, new THREE.Vector3((Math.random()-0.5)*40, (Math.random()-0.5)*40, -10), new THREE.Vector3(0, 0, 0), (s,dt) => { s.mesh.translateZ(-dt*600); }, modelPos, camDir, camQuat); }, i * 40); } break;
+                        case 4: window.playerPhysics.velocity.add(camDir.clone().multiplyScalar(1200)); this.spawnGenericEffect('sphere', new THREE.Vector3(3.0, 3.0, 3.0), 0.8, new THREE.Vector3(0, 0, -20), new THREE.Vector3(0, 0, 0), (s,dt) => { s.mesh.translateZ(-dt*800); s.mesh.scale.addScalar(dt*8); }, modelPos, camDir, camQuat); break;
+                        case 5: this.spawnGenericEffect('crescent', new THREE.Vector3(2.5, 1.0, 2.5), 0.5, new THREE.Vector3(0, 20, 10), new THREE.Vector3(Math.PI/2, 0, 0), (s,dt) => { s.mesh.rotateZ(-dt*20); s.mesh.translateY(dt*100); }, modelPos, camDir, camQuat); break;
+                        case 6: for(let i=0; i<8; i++) { setTimeout(() => { this.spawnGenericEffect('crescent', new THREE.Vector3(1.0, 0.5, 1.0), 0.4, new THREE.Vector3(0, 0, -10), new THREE.Vector3(Math.PI/2, (Math.random()-0.5)*2, 0), (s,dt) => { s.mesh.translateY(-dt*400); }, modelPos, camDir, camQuat); }, i * 50); } break;
+                        case 7: for(let i=0; i<15; i++) { setTimeout(() => { this.spawnGenericEffect('sphere', new THREE.Vector3(0.6, 0.6, 0.6), 0.6, new THREE.Vector3((Math.random()-0.5)*30, -10, -20), new THREE.Vector3(0, 0, 0), (s,dt) => { s.mesh.position.y += dt*400; s.mesh.position.x += Math.sin(s.life*10)*5; }, modelPos, camDir, camQuat); }, i * 40); } break;
+                        case 8: window.playerPhysics.velocity.y = -800; this.spawnGenericEffect('cone', new THREE.Vector3(3.0, 3.0, 3.0), 0.8, new THREE.Vector3(0, -10, -10), new THREE.Vector3(-Math.PI/2, 0, 0), (s,dt) => { s.mesh.scale.addScalar(dt*5); }, modelPos, camDir, camQuat); setTimeout(()=>this.createShockwave(modelPos.clone().add(new THREE.Vector3(0,-14,0)), camQuat, 10.0, true), 200); break;
+                        case 9: 
+                        case 10: window.playerPhysics.velocity.y = 400; window.playerPhysics.addCameraShake(12.0); this.createShockwave(modelPos, camQuat, 15.0); for(let i=0; i<60; i++) { setTimeout(() => { this.spawnGenericEffect('sphere', new THREE.Vector3(0.8, 0.8, 0.8), 0.6, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0), (s,dt) => { s.mesh.position.add(s.mesh.userData.dir.clone().multiplyScalar(dt*600)); }, modelPos, camDir, camQuat, i%3===0); this.slashes[this.slashes.length-1].mesh.userData.dir = new THREE.Vector3((Math.random()-0.5)*2, (Math.random()-0.5)*2, (Math.random()-0.5)*2).normalize(); }, i * 20); } break;
+                    }
+                }
+            }
+
+            update(delta) {
+                const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(this.camera.quaternion);
+                for (let i = this.slashes.length - 1; i >= 0; i--) {
+                    let s = this.slashes[i]; s.life -= delta;
+                    if (s.life <= 0) { 
+                        s.mesh.children[0].material.dispose(); s.mesh.children[1].material.dispose(); this.scene.remove(s.mesh); this.slashes.splice(i, 1); 
+                    } else {
+                        let progress = 1.0 - (s.life / s.maxLife); s.mesh.scale.copy(s.startScale).multiplyScalar(1.0 + Math.pow(progress, 0.6) * 1.8); 
+                        if (s.customUpdate) s.customUpdate(s, delta); else s.mesh.translateY(-120 * delta); 
+                        s.texOffset -= delta * 4.0; s.mesh.children[0].material.uniforms.uOffset.value = s.texOffset; s.mesh.children[1].material.uniforms.uOffset.value = s.texOffset;
+                        let op = Math.pow(Math.sin(Math.PI * (s.life / s.maxLife)), 0.4); 
+                        s.mesh.children[1].material.uniforms.uOpacity.value = op; if(s.light) s.light.intensity = 5.0 * op;
+                        if (Math.random() > 0.2) this.spawnSplash(s.mesh.position, camDir, 10, 1.5, 0.2);
+                    }
+                }
+                for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+                    let sw = this.shockwaves[i]; sw.life -= delta;
+                    if(sw.life <= 0) { this.scene.remove(sw.mesh); sw.mesh.material.dispose(); sw.mesh.geometry.dispose(); this.shockwaves.splice(i, 1); }
+                    else { let p = 1.0 - (sw.life / sw.maxLife); let s = sw.maxScale * Math.pow(p, 0.5); sw.mesh.scale.set(s,s,s); sw.mesh.material.opacity = 1.0 - p; }
+                }
+                for (let i = this.kanjis.length - 1; i >= 0; i--) {
+                    let k = this.kanjis[i]; k.life -= delta;
+                    if (k.life <= 0) { this.scene.remove(k.mesh); k.mesh.material.map.dispose(); k.mesh.material.dispose(); this.kanjis.splice(i, 1); } 
+                    else { let p = 1.0 - (k.life / k.maxLife); k.mesh.scale.set(0.1 + p*0.5, 0.1 + p*0.5, 0.1 + p*0.5); k.mesh.translateZ(-200 * delta); k.mesh.material.opacity = Math.sin(Math.PI * (k.life / k.maxLife)); }
+                }
+                for (let i = this.customEffects.length - 1; i >= 0; i--) {
+                    let c = this.customEffects[i]; c.life -= delta;
+                    if(c.update) c.update(c, delta);
+                    if (c.life <= 0) { 
+                        this.scene.remove(c.mesh); 
+                        if (c.mesh.isMesh) {
+                            if (c.mesh.material.map) c.mesh.material.map.dispose();
+                            c.mesh.material.dispose();
+                        } else {
+                            c.mesh.traverse(child => {
+                                if (child.isMesh && child.material) {
+                                    if(child.material.map) child.material.map.dispose();
+                                    child.material.dispose();
+                                }
+                            });
+                        }
+                        this.customEffects.splice(i, 1); 
+                    }
+                }
+
+                let debrisActive = false;
+                for(let i=0; i<this.debrisCount; i++) {
+                    let d = this.debrisData[i];
+                    if(d.life > 0) {
+                        d.life -= delta;
+                        d.vel.y -= 1500 * delta; 
+                        d.pos.addScaledVector(d.vel, delta);
+                        d.rot.x += d.aVel.x * delta; d.rot.y += d.aVel.y * delta; d.rot.z += d.aVel.z * delta;
+                        
+                        this.debrisDummy.position.copy(d.pos);
+                        this.debrisDummy.rotation.copy(d.rot);
+                        const scale = Math.max(0, d.life * 2.0); 
+                        this.debrisDummy.scale.setScalar(Math.min(1.0, scale));
+                        this.debrisDummy.updateMatrix();
+                        this.debrisMesh.setMatrixAt(i, this.debrisDummy.matrix);
+                        debrisActive = true;
+                    } else {
+                        this.debrisMesh.setMatrixAt(i, _m1.identity().scale(new THREE.Vector3(0,0,0)));
+                    }
+                }
+                if(debrisActive) this.debrisMesh.instanceMatrix.needsUpdate = true;
+
+                const posAttr = this.particleGeo.attributes.position; let activeParticles = false;
+                for(let i=0; i<this.particleCount; i++) {
+                    if (this.pLifetimes[i] > 0) {
+                        this.pLifetimes[i] -= delta;
+                        if (selectedChar && selectedChar.id === 'tanjiro') this.pVelocities[i*3+1] += 1200 * delta; else if (selectedChar && selectedChar.id === 'akaza') this.pVelocities[i*3+1] -= 200 * delta; else this.pVelocities[i*3+1] -= 900 * delta; 
+                        this.pPositions[i*3] += this.pVelocities[i*3] * delta; this.pPositions[i*3+1] += this.pVelocities[i*3+1] * delta; this.pPositions[i*3+2] += this.pVelocities[i*3+2] * delta;
+                        if(this.pLifetimes[i] <= 0) this.pPositions[i*3] = 99999; activeParticles = true;
+                    }
+                }
+                if (activeParticles) posAttr.needsUpdate = true;
+            }
+        }
+
+        class PlayerPhysicsController {
+            constructor(camera, scene, domElement, castleSystem) {
+                this.camera = camera; this.castleSystem = castleSystem; this.scene = scene;
+                this.wrapper = new THREE.Group(); this.scene.add(this.wrapper);
+                this.cameraMount = new THREE.Group(); this.wrapper.add(this.cameraMount); this.cameraMount.add(camera);
+                
+                this.stickman = createAvatarModel(selectedChar); 
+                this.scene.add(this.stickman.model);
+                this.bodyLight = new THREE.PointLight(selectedChar.colors.pWater, 1.2, 800, 2.5); this.bodyLight.position.set(0, 10, 0); this.scene.add(this.bodyLight);
+
+                this.controls = new PointerLockControls(this.cameraMount, domElement);
+                this.velocity = new THREE.Vector3(); this.direction = new THREE.Vector3();
+                this.moveForward = this.moveBackward = this.moveLeft = this.moveRight = this.canJump = false;
+                this.speed = 200.0; this.gravity = 900.0; this.jumpStrength = 380.0; this.playerHeight = 18.0;
+                
+                this.baseFOV = 85; this.targetFOV = 85;
+                this.isDashing = false; this.standingOnPlatform = null; this.shakeIntensity = 0;
+                this.dashData = { active: false };
+
+                this.downRaycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0), 0, this.playerHeight + 5);
+                this.aimRaycaster = new THREE.Raycaster();
+                
+                this.uiTimer = document.getElementById('gravity-timer');
+                this.combatSystem = new CombatSystem(scene, camera);
+                this.attackState = { active: false, type: -1, timer: 0, duration: 0 };
+                
+                this.cinematic = { active: false, timer: 0, duration: 0, type: 0, ogPos: new THREE.Vector3(), ogQuat: new THREE.Quaternion(), lookTarget: new THREE.Vector3() };
+
+                window.playerPhysics = this; this.initEvents();
+            }
+
+            cinematicFOV(target, duration) { 
+                this.targetFOV = target; setTimeout(() => { this.targetFOV = this.baseFOV; }, duration * 1000); 
+            }
+
+            enterCinematic(duration, type) {
+                this.cinematic.active = true; this.cinematic.timer = 0; this.cinematic.duration = duration; this.cinematic.type = type;
+                timeScale = 0.15; 
+
+                document.getElementById('cinematic-top').style.height = '12%'; document.getElementById('cinematic-bottom').style.height = '12%';
+                this.cinematic.ogPos.copy(this.camera.position); this.cinematic.ogQuat.copy(this.camera.quaternion);
+            }
+
+            exitCinematic() {
+                this.cinematic.active = false; timeScale = 1.0;
+                document.getElementById('cinematic-top').style.height = '0'; document.getElementById('cinematic-bottom').style.height = '0';
+                this.camera.position.copy(this.cinematic.ogPos); this.camera.quaternion.copy(this.cinematic.ogQuat);
+            }
+
+            async triggerPlayerDash() {
+                this.aimRaycaster.setFromCamera({x:0, y:0}, this.camera);
+                const intersects = this.aimRaycaster.intersectObjects(this.castleSystem.getCollidables(), false);
+                if (intersects.length > 0) {
+                    const hit = intersects[0]; if(hit.distance > 8000) return; 
+                    const modelPos = this.stickman.model.position.clone();
+                    const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(this.cameraMount.quaternion); camDir.y = 0; camDir.normalize();
+                    this.cinematicFOV(100, 0.4);
+                    this.combatSystem.spawnGenericEffect('crescent', new THREE.Vector3(3.5, 2.5, 3.5), 0.4, new THREE.Vector3(0, -10, -5), new THREE.Vector3(Math.PI/2, 0, 0), (s, dt) => { s.mesh.rotateX(-dt * 12); s.mesh.translateZ(dt * 300); }, modelPos, camDir, this.cameraMount.quaternion);
+                    this.isDashing = true; this.velocity.set(0, 0, 0); this.standingOnPlatform = null;
+                    const crosshair = document.getElementById('crosshair'); crosshair.style.transform = 'translate(-50%, -50%) scale(4)';
+                    setTimeout(() => { crosshair.style.transform = 'translate(-50%, -50%) scale(1)'; }, 100);
+                    let worldNormal = hit.face.normal.clone();
+                    if (hit.object.isInstancedMesh) { const instanceMatrix = new THREE.Matrix4(); hit.object.getMatrixAt(hit.instanceId, instanceMatrix); worldNormal.applyMatrix3(new THREE.Matrix3().getNormalMatrix(instanceMatrix)).normalize(); }
+                    worldNormal.transformDirection(hit.object.matrixWorld).normalize();
+                    let platformObj = null;
+                    if (hit.object.isInstancedMesh && hit.object.userData.buildingData) { platformObj = hit.object.userData.buildingData[Math.floor(hit.instanceId / hit.object.userData.itemsPerBuilding)]; } 
+                    else { let current = hit.object; while(current && !current.userData.velocity && current.parent) current = current.parent; if (current && current.userData.velocity) platformObj = current.userData; }
+                    this.dashData = { active: true, timer: 0, duration: 0.25, startPos: this.wrapper.position.clone(), startQuat: this.wrapper.quaternion.clone(), targetNormal: worldNormal.clone(), hitPoint: hit.point.clone(), platform: platformObj };
+                    this.camera.position.set(0, 0, 0);
+                }
+            }
+
+            triggerPlayerAttack(type) {
+                if(this.cinematic.active) return; 
+                const modelPos = this.stickman.model.position.clone();
+                const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(this.cameraMount.quaternion); camDir.y = 0; camDir.normalize();
+                
+                const durations = { 0: 0.3, 1: 0.8, 2: 0.9, 3: 1.0, 4: 0.8, 5: 1.2, 6: 1.2, 7: 1.5, 8: 1.2, 9: 1.8, 10: 2.8 };
+                const dur = durations[type] || 0.5;
+                
+                // 動畫運鏡開關檢查
+                if(type >= 1 && window.gameSettings.enableCinematic) {
+                    this.enterCinematic(dur, type);
+                }
+
+                this.combatSystem.triggerAttack(type, modelPos, camDir, this.cameraMount.quaternion);
+                this.attackState = { active: true, type: type, timer: 0, duration: dur };
+
+                highlightSkillSlot(type);
+            }
+
+            initEvents() {
+                const onKeyDown = (event) => {
+                    if (!this.controls.isLocked || this.cinematic.active) return;
+                    switch (event.code) {
+                        case 'KeyW': this.moveForward = true; break; case 'KeyA': this.moveLeft = true; break; case 'KeyS': this.moveBackward = true; break; case 'KeyD': this.moveRight = true; break;
+                        case 'Space': 
+                            const now = performance.now(); if (now - this.lastSpaceTime < 300) { this.isFlying = !this.isFlying; this.velocity.set(0, 0, 0); } this.lastSpaceTime = now;
+                            if (this.isFlying) { this.moveUp = true; } else { if (this.canJump) { this.velocity.y += this.jumpStrength; this.canJump = false; } } break;
+                        case 'ShiftLeft': case 'ShiftRight': this.moveDown = true; break;
+                        case 'Digit1': this.triggerPlayerAttack(1); break; case 'Digit2': this.triggerPlayerAttack(2); break; case 'Digit3': this.triggerPlayerAttack(3); break; case 'Digit4': this.triggerPlayerAttack(4); break; case 'Digit5': this.triggerPlayerAttack(5); break; case 'Digit6': this.triggerPlayerAttack(6); break; case 'Digit7': this.triggerPlayerAttack(7); break; case 'Digit8': this.triggerPlayerAttack(8); break; case 'Digit9': this.triggerPlayerAttack(9); break; case 'Digit0': this.triggerPlayerAttack(10); break;
+                    }
+                };
+                const onKeyUp = (event) => { switch (event.code) { case 'KeyW': this.moveForward = false; break; case 'KeyA': this.moveLeft = false; break; case 'KeyS': this.moveBackward = false; break; case 'KeyD': this.moveRight = false; break; case 'Space': this.moveUp = false; break; case 'ShiftLeft': case 'ShiftRight': this.moveDown = false; break; } };
+                
+                document.addEventListener('mousedown', (event) => { 
+                    if ((!this.controls.isLocked && !window.gameSettings.isMobile) || this.cinematic.active || this.isDashing) return; 
+                    // 若點擊在虛擬按鍵上不觸發全域攻擊
+                    if (event.target.className === 'm-btn' || event.target.className === 'm-dir') return;
+                    if (event.button === 0) this.triggerPlayerAttack(0); 
+                    else if (event.button === 2) this.triggerPlayerDash(); 
+                });
+                
+                document.addEventListener('contextmenu', event => event.preventDefault()); document.addEventListener('keydown', onKeyDown); document.addEventListener('keyup', onKeyUp);
+
+                this.controls.addEventListener('lock', () => { 
+                    this.uiTimer.style.display = 'block'; 
+                    document.getElementById('pause-menu').style.display = 'none';
+                    isPaused = false;
+                });
+                this.controls.addEventListener('unlock', () => { 
+                    this.uiTimer.style.display = 'none'; 
+                    // 若為電腦模式且遊戲中，解除鎖定視同暫停
+                    if (isGamePlaying && !window.gameSettings.isMobile && document.getElementById('settings-menu').style.display === 'none') {
+                        window.pauseGame();
+                    }
+                });
+            }
+
+            addCameraShake(intensity) { this.shakeIntensity = Math.max(this.shakeIntensity, intensity); }
+
+            update(rawDelta) {
+                const delta = rawDelta * timeScale; 
+                this.combatSystem.update(delta); 
+
+                const speedSq = this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z;
+                const isJumping = Math.abs(this.velocity.y) > 5 || this.isFlying;
+                const time = performance.now() * 0.015 * timeScale;
+
+                this.stickman.spinGroup.rotation.set(0,0,0); 
+
+                if (this.attackState.active) {
+                    this.attackState.timer += delta; let t = this.attackState.timer / this.attackState.duration;
+                    if (t >= 1) this.attackState.active = false;
+                    else {
+                        let ease = Math.sin(t * Math.PI); 
+                        
+                        if (selectedChar.id === 'giyu') {
+                            switch(this.attackState.type) {
+                                case 1: this.stickman.spinGroup.rotation.y = Math.PI * ease; this.stickman.limbs.armR.rotation.x = -Math.PI/2; break; 
+                                case 2: this.stickman.spinGroup.rotation.x = -t * Math.PI * 2; this.stickman.limbs.armR.rotation.x = -Math.PI; break; 
+                                case 3: this.stickman.spinGroup.rotation.z = (Math.random()-0.5)*ease; this.stickman.limbs.armR.rotation.z = Math.PI/2*ease; break; 
+                                case 4: this.stickman.spinGroup.rotation.y = Math.PI/2 * ease; this.stickman.limbs.armR.rotation.x = -Math.PI/2; break; 
+                                case 5: this.stickman.limbs.armR.rotation.x = -Math.PI * (1-t); break; 
+                                case 6: this.stickman.spinGroup.rotation.y = t * Math.PI * 6; this.stickman.limbs.armR.rotation.z = Math.PI/2; break; 
+                                case 7: this.stickman.limbs.armR.rotation.x = -Math.PI/2; this.stickman.limbs.armR.position.z = 2.5 + ease*5; break; 
+                                case 8: this.stickman.limbs.armR.rotation.x = -Math.PI + ease*Math.PI; this.stickman.spinGroup.rotation.x = Math.PI/4 * ease; break; 
+                                case 9: this.stickman.spinGroup.rotation.z = (Math.random()-0.5); this.stickman.spinGroup.rotation.x = (Math.random()-0.5); break; 
+                                case 10: this.stickman.limbs.armR.rotation.x = -Math.PI/4; this.stickman.limbs.armL.rotation.x = 0; break; 
+                            }
+                        } else if (selectedChar.id === 'tanjiro') {
+                            switch(this.attackState.type) {
+                                case 1: this.stickman.spinGroup.rotation.y = Math.PI * ease; this.stickman.limbs.armR.rotation.x = -Math.PI/2; break; 
+                                case 2: this.stickman.spinGroup.rotation.x = t * Math.PI * 2; this.stickman.limbs.armR.rotation.x = -Math.PI*t; break; 
+                                case 3: this.stickman.spinGroup.rotation.y = (Math.random()-0.5)*ease; this.stickman.limbs.armR.rotation.z = (Math.random()-0.5)*Math.PI; break; 
+                                case 4: this.stickman.spinGroup.rotation.y = Math.PI * 4 * t; break; 
+                                case 5: this.stickman.spinGroup.rotation.x = -t * Math.PI * 2; this.stickman.limbs.armR.rotation.x = -Math.PI; break; 
+                                case 6: this.stickman.limbs.armR.rotation.x = -Math.PI/2; this.stickman.limbs.armR.position.x = 2.5 + Math.sin(t*20); break; 
+                                case 7: this.stickman.spinGroup.rotation.y = t * Math.PI * 2; this.stickman.limbs.armR.rotation.x = -Math.PI/2; break; 
+                                case 8: this.stickman.spinGroup.rotation.z = t * Math.PI * 2; this.stickman.limbs.armR.rotation.x = -Math.PI; break; 
+                                case 9: this.stickman.spinGroup.rotation.x = Math.PI; this.stickman.spinGroup.rotation.y = t * Math.PI * 2; break; 
+                                case 10: this.stickman.spinGroup.rotation.y = t * Math.PI * 2; this.stickman.limbs.armR.rotation.x = -Math.PI * ease; break; 
+                            }
+                        } else if (selectedChar.id === 'akaza') {
+                            switch(this.attackState.type) {
+                                case 1: this.stickman.spinGroup.rotation.y = Math.PI/2 * ease; this.stickman.limbs.armR.rotation.x = -Math.PI/3 * ease; this.stickman.limbs.armL.rotation.x = Math.PI/3 * ease; this.stickman.limbs.legL.rotation.x = -Math.PI/4 * ease; this.stickman.limbs.legR.rotation.x = Math.PI/4 * ease; break; 
+                                case 2: this.stickman.limbs.armR.rotation.x = -Math.PI/2 + (Math.random()-0.5)*ease; this.stickman.limbs.armL.rotation.x = -Math.PI/2 + (Math.random()-0.5)*ease; break; 
+                                case 3: this.stickman.spinGroup.rotation.y = (Math.random()-0.5)*ease; this.stickman.limbs.armR.rotation.x = -Math.PI/2; this.stickman.limbs.armL.rotation.x = -Math.PI/2; break; 
+                                case 4: this.stickman.limbs.armR.rotation.x = -Math.PI * t; this.stickman.spinGroup.rotation.y = Math.PI/4 * ease; break; 
+                                case 5: this.stickman.spinGroup.rotation.x = t * Math.PI * 2; this.stickman.limbs.legR.rotation.x = -Math.PI/2; break; 
+                                case 6: this.stickman.limbs.legR.rotation.x = -Math.PI/2 + (Math.random()-0.5)*ease; this.stickman.limbs.legL.rotation.x = -Math.PI/2 + (Math.random()-0.5)*ease; break; 
+                                case 7: this.stickman.spinGroup.rotation.x = Math.PI; this.stickman.spinGroup.rotation.y = t * Math.PI * 4; this.stickman.limbs.legR.rotation.x = -Math.PI/2; break; 
+                                case 8: this.stickman.spinGroup.rotation.x = Math.PI/4 * ease; this.stickman.limbs.armR.rotation.x = -Math.PI + ease*Math.PI; break; 
+                                case 9: 
+                                case 10: this.stickman.limbs.armR.rotation.x = -Math.PI/2 + (Math.random()-0.5)*2; this.stickman.limbs.armL.rotation.x = -Math.PI/2 + (Math.random()-0.5)*2; break; 
+                            }
+                        }
+                    }
+                } 
+                if (!this.attackState.active) {
+                    if (isJumping) {
+                        this.stickman.spinGroup.rotation.x = -Math.PI / 8;
+                        this.stickman.limbs.armL.rotation.x = -Math.PI/4; this.stickman.limbs.armR.rotation.x = -Math.PI/4;
+                        this.stickman.limbs.legL.rotation.x = -Math.PI/3; this.stickman.limbs.legR.rotation.x = -Math.PI/6;
+                    } else if ((this.moveForward || this.moveBackward || this.moveLeft || this.moveRight) && speedSq > 10 && !this.cinematic.active) { 
+                        this.stickman.spinGroup.rotation.x = Math.PI / 8; this.stickman.model.position.y += Math.abs(Math.sin(time*1.5)) * 2; 
+                        this.stickman.limbs.armL.rotation.x = Math.sin(time*1.5) * Math.PI/3; this.stickman.limbs.armR.rotation.x = -Math.sin(time*1.5) * Math.PI/3;
+                        this.stickman.limbs.legL.rotation.x = -Math.sin(time*1.5) * Math.PI/3; this.stickman.limbs.legR.rotation.x = Math.sin(time*1.5) * Math.PI/3;
+                    } else {
+                        this.stickman.model.position.y += Math.sin(time*0.2) * 1.5;
+                        this.stickman.limbs.armL.rotation.x = 0; this.stickman.limbs.armR.rotation.x = 0; this.stickman.limbs.legL.rotation.x = 0; this.stickman.limbs.legR.rotation.x = 0;
+                    }
+                }
+
+                this.wrapper.updateMatrixWorld(true);
+
+                if (this.cinematic.active) {
+                    this.cinematic.timer += rawDelta; 
+                    let t = this.cinematic.timer / this.cinematic.duration;
+                    if (t >= 1) { this.exitCinematic(); }
+                    else {
+                        const camDir = new THREE.Vector3(0,0,-1).applyQuaternion(this.cameraMount.quaternion); camDir.y = 0; camDir.normalize();
+                        const right = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0,1,0)).normalize();
+                        
+                        const headWorld = new THREE.Vector3(); this.stickman.headNode.getWorldPosition(headWorld);
+                        const modelPos = this.stickman.model.position;
+                        
+                        let targetCameraPos = new THREE.Vector3();
+                        let overrideLook = false;
+
+                        if (selectedChar.id === 'giyu') {
+                            switch(this.cinematic.type) {
+                                case 1: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(20)).add(new THREE.Vector3(0, 8, 10)); this.cinematic.lookTarget.copy(modelPos.clone().add(camDir.clone().multiplyScalar(10))); break; 
+                                case 2: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(-20)).add(new THREE.Vector3(0, 5, 12)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 3: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(-25)).add(new THREE.Vector3(0, 15, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 4: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(12)).add(right.clone().multiplyScalar(20)).add(new THREE.Vector3(0, 8, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 5: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(20)).add(new THREE.Vector3(0, 5, 0)); this.cinematic.lookTarget.copy(headWorld); break; 
+                                case 6: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(-18)).add(new THREE.Vector3(0, 30, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 7: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(15)).add(new THREE.Vector3(0, 8, -5)); this.cinematic.lookTarget.copy(modelPos.clone().add(camDir.clone().multiplyScalar(15))); break; 
+                                case 8: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(25)).add(new THREE.Vector3(0, 15 + Math.sin(t*Math.PI)*15, 12)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 9: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(-25)).add(new THREE.Vector3(0, 20, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 10: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(-20 + t*10)).add(right.clone().multiplyScalar(-15 + t*5)).add(new THREE.Vector3(0, 12, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                            }
+                        } else if (selectedChar.id === 'tanjiro') {
+                            switch(this.cinematic.type) {
+                                case 1: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(20)).add(camDir.clone().multiplyScalar(10)).add(new THREE.Vector3(0, 8, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 2: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(-20)).add(new THREE.Vector3(0, -2 + t*10, 12)); this.cinematic.lookTarget.copy(modelPos.clone().add(new THREE.Vector3(0, 5, 0))); break; 
+                                case 3: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(25)).add(new THREE.Vector3(0, 10, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 4: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(18)).add(right.clone().multiplyScalar(-18)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 5: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(22)).add(new THREE.Vector3(0, Math.sin(t*Math.PI)*20, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 6: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(-20)).add(right.clone().multiplyScalar(15)).add(new THREE.Vector3(0, 10, 0)); this.cinematic.lookTarget.copy(modelPos.clone().add(camDir.clone().multiplyScalar(15))); break; 
+                                case 7: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(-15)).add(right.clone().multiplyScalar(20)).add(new THREE.Vector3(0, 5, 0)); this.cinematic.lookTarget.copy(modelPos.clone().add(camDir.clone().multiplyScalar(20))); break; 
+                                case 8: targetCameraPos.copy(modelPos).add(new THREE.Vector3(Math.sin(t*Math.PI*2)*22, 15, Math.cos(t*Math.PI*2)*22)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 9: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(25)).add(new THREE.Vector3(0, 10, 0)); this.cinematic.lookTarget.copy(modelPos); this.camera.up.set(0, Math.cos(t*Math.PI), 0); overrideLook=true; break; 
+                                case 10: 
+                                    if (t < 0.2) { targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(15)).add(new THREE.Vector3(0,8,0)); this.cinematic.lookTarget.copy(headWorld); } 
+                                    else if (t < 0.6) { targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(25)).add(new THREE.Vector3(0, 10, -5)); this.cinematic.lookTarget.copy(modelPos); } 
+                                    else { targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(-30)).add(new THREE.Vector3(0, 18, 0)); this.cinematic.lookTarget.copy(modelPos.clone().add(camDir.clone().multiplyScalar(10))); } break; 
+                            }
+                        } else if (selectedChar.id === 'akaza') {
+                            switch(this.cinematic.type) {
+                                case 1: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(25)).add(new THREE.Vector3(0, 15, 0)); this.cinematic.lookTarget.copy(modelPos.clone().add(new THREE.Vector3(0,-5,0))); break; 
+                                case 2: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(12)).add(camDir.clone().multiplyScalar(-20)).add(new THREE.Vector3(0, 10, 0)); this.cinematic.lookTarget.copy(modelPos.clone().add(camDir.clone().multiplyScalar(25))); break; 
+                                case 3: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(25)).add(new THREE.Vector3(0, 10, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 4: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(20)).add(right.clone().multiplyScalar(-15)).add(new THREE.Vector3(0, 10, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 5: targetCameraPos.copy(modelPos).add(right.clone().multiplyScalar(25)).add(new THREE.Vector3(0, 12, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 6: targetCameraPos.copy(modelPos).add(camDir.clone().multiplyScalar(25)).add(new THREE.Vector3(0, 5, 0)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 7: targetCameraPos.copy(modelPos).add(new THREE.Vector3(0, -5 + t*25, 25)); this.cinematic.lookTarget.copy(modelPos); break; 
+                                case 8: targetCameraPos.copy(modelPos).add(new THREE.Vector3(0, 30, -20)); this.cinematic.lookTarget.copy(modelPos.clone().add(new THREE.Vector3(0,-10,0))); break; 
+                                case 9: 
+                                case 10: targetCameraPos.copy(modelPos).add(new THREE.Vector3(Math.sin(t*Math.PI*2)*30, 15 + Math.sin(t*Math.PI)*12, Math.cos(t*Math.PI*2)*30)); this.cinematic.lookTarget.copy(modelPos); break; 
+                            }
+                        }
+
+                        const maxDist = 35;
+                        if (targetCameraPos.distanceTo(modelPos) > maxDist) {
+                            targetCameraPos.copy(modelPos).lerp(targetCameraPos, maxDist / targetCameraPos.distanceTo(modelPos));
+                        }
+                        
+                        this.camera.position.lerp(this.wrapper.worldToLocal(targetCameraPos), 0.1);
+                        const targetQuat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(this.camera.getWorldPosition(new THREE.Vector3()), this.wrapper.worldToLocal(this.cinematic.lookTarget.clone()), this.camera.up));
+                        this.camera.quaternion.slerp(targetQuat, 0.15);
+                        
+                        if(!overrideLook && !this.camera.fov) this.camera.fov = 85 - Math.sin(t * Math.PI) * 25; 
+                        this.camera.updateProjectionMatrix();
+                        
+                        if(timeScale > 0.01) timeScale = 0.05 + Math.pow(t, 2) * 0.95; 
+                    }
+                } else {
+                    this.camera.up.set(0,1,0); 
+                    this.camera.fov += (this.targetFOV - this.camera.fov) * 10 * rawDelta; this.camera.updateProjectionMatrix();
+                }
+
+                if (this.dashData && this.dashData.active) {
+                    this.dashData.timer += delta; let t = this.dashData.timer / this.dashData.duration;
+                    if (this.dashData.platform && this.dashData.platform.velocity) { _v1.copy(this.dashData.platform.velocity).multiplyScalar(delta); this.dashData.hitPoint.add(_v1); }
+                    if (t >= 1) { t = 1; this.dashData.active = false; this.isDashing = false; this.standingOnPlatform = this.dashData.platform; this.velocity.set(0, 0, 0); }
+                    let ease = 1 - Math.pow(1 - t, 3);
+                    this.wrapper.position.lerpVectors(this.dashData.startPos, _v2.copy(this.dashData.hitPoint).add(this.dashData.targetNormal.clone().multiplyScalar(this.playerHeight)), ease);
+                    this.wrapper.quaternion.slerpQuaternions(this.dashData.startQuat, _q1.setFromUnitVectors(new THREE.Vector3(0, 1, 0), this.dashData.targetNormal), ease);
+                    
+                    this.cameraMount.getWorldPosition(_worldPos); _v2.set(0, 0, -1).applyQuaternion(this.cameraMount.quaternion); _v2.y = 0; 
+                    if (_v2.lengthSq() > 0.001) { _v2.normalize(); this.stickman.model.rotation.y = Math.atan2(_v2.x, _v2.z) + Math.PI; }
+                    this.stickman.model.position.copy(_worldPos); this.stickman.model.position.y -= 14; this.stickman.model.position.add(_v2.multiplyScalar(22)); 
+                    this.stickman.spinGroup.rotation.x = Math.PI / 4; return; 
+                }
+
+                this.cameraMount.getWorldPosition(_worldPos);
+                _v2.set(0, 0, -1).applyQuaternion(this.cameraMount.quaternion); _v2.y = 0; 
+                if (_v2.lengthSq() > 0.001) { _v2.normalize(); this.stickman.model.rotation.y = Math.atan2(_v2.x, _v2.z) + Math.PI; }
+                this.stickman.model.position.copy(_worldPos); this.stickman.model.position.y -= 14; this.stickman.model.position.add(_v2.multiplyScalar(22)); 
+                this.bodyLight.position.copy(this.stickman.model.position); this.bodyLight.position.y += 15;
+
+                if (this.wrapper.position.y < -30000 || this.wrapper.position.length() > 60000) { this.wrapper.position.set(0, 60, 350); this.velocity.set(0, 0, 0); }
+                if (!this.controls.isLocked) return;
+
+                if (this.shakeIntensity > 0) {
+                    this.cameraMount.position.x = (Math.random() - 0.5) * this.shakeIntensity; this.cameraMount.position.y = (Math.random() - 0.5) * this.shakeIntensity; this.cameraMount.position.z = (Math.random() - 0.5) * this.shakeIntensity;
+                    this.shakeIntensity -= rawDelta * 15.0; if(this.shakeIntensity < 0) this.shakeIntensity = 0;
+                } else this.cameraMount.position.lerp(new THREE.Vector3(0,0,0), 0.2);
+
+                if (this.cinematic.active || this.isDashing) return; 
+
+                if (this.isFlying) {
+                    this.velocity.set(0, 0, 0); const flySpeed = this.speed * 4.5 * delta; 
+                    if (this.moveForward) this.controls.moveForward(flySpeed); if (this.moveBackward) this.controls.moveForward(-flySpeed);
+                    if (this.moveLeft) this.controls.moveRight(-flySpeed); if (this.moveRight) this.controls.moveRight(flySpeed);
+                    if (this.moveUp) this.wrapper.position.y += flySpeed; if (this.moveDown) this.wrapper.position.y -= flySpeed; return; 
+                }
+
+                const collidables = this.castleSystem.getCollidables();
+                this.velocity.x -= this.velocity.x * 10.0 * delta; this.velocity.z -= this.velocity.z * 10.0 * delta;
+                this.velocity.y -= this.gravity * delta; this.velocity.y = Math.max(this.velocity.y, -4000); 
+
+                this.cameraMount.getWorldPosition(_worldPos);
+                _downDir.set(0, -1, 0).applyQuaternion(this.wrapper.quaternion).normalize();
+                this.downRaycaster.set(_worldPos, _downDir);
+                const fallDistanceThisFrame = Math.abs(this.velocity.y * delta);
+                this.downRaycaster.far = this.playerHeight + fallDistanceThisFrame + 100; 
+                
+                const intersectsDown = this.downRaycaster.intersectObjects(collidables, false);
+                this.canJump = false; 
+
+                if (intersectsDown.length > 0) {
+                    const hit = intersectsDown[0];
+                    if (this.velocity.y < 0 && hit.distance <= this.playerHeight + fallDistanceThisFrame) {
+                        if (this.velocity.y < -600) this.addCameraShake(Math.abs(this.velocity.y) / 100);
+                        this.velocity.y = 0; this.canJump = true;
+                        _v1.copy(_downDir).multiplyScalar(-this.playerHeight); this.wrapper.position.copy(hit.point).add(_v1);
+                    }
+                }
+
+                this.direction.z = Number(this.moveForward) - Number(this.moveBackward); this.direction.x = Number(this.moveRight) - Number(this.moveLeft); this.direction.normalize();
+                if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * this.speed * delta;
+                if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * this.speed * delta;
+                this.controls.moveRight(-this.velocity.x * delta); this.controls.moveForward(-this.velocity.z * delta); this.wrapper.translateY(this.velocity.y * delta);
+            }
+        }
+
+        class InfinityCastleSystem {
+            constructor(scene) {
+                this.scene = scene; this.worldGroup = new THREE.Group(); this.scene.add(this.worldGroup);
+                this.collidableMeshes = []; this.allBuildings = []; this.dynamicCorridors = [];
+                this.chunkSize = 350; this.activeChunks = new Map(); this.viewDistance = 3; this.frameId = 0;
+                
+                this.geos = { woodBase: new THREE.BoxGeometry(1, 40, 1), tatami: new THREE.BoxGeometry(1, 10, 1), beam: new THREE.BoxGeometry(1, 1, 1), railTop: new THREE.BoxGeometry(1, 6, 8), railBot: new THREE.BoxGeometry(1, 4, 4), lanternCore: new THREE.CylinderGeometry(6, 6, 20, 8), lanternCap: new THREE.CylinderGeometry(8.5, 8.5, 3, 8), lanternFrame: new THREE.CylinderGeometry(7.5, 7.5, 21, 4), giboshi: new THREE.SphereGeometry(4, 8, 8), roofPyramid: new THREE.CylinderGeometry(0.01, 0.707, 1, 4) };
+                this.WAVE_IDLE = 0; this.WAVE_RUMBLE = 1; this.WAVE_DASH = 2; this.waveState = this.WAVE_IDLE; this.waveTimer = 15.0; 
+                this.uiAlert = document.getElementById('wave-alert'); this.uiSystemTimer = document.getElementById('gravity-timer'); this.dmgOverlay = document.getElementById('damage-overlay');
+
+                this.initDustParticles(); this.createMainLobby(); this.initMassiveArchitecture(); this.initConcentratedCorridors(45); 
+            }
+
+            getCollidables() { return this.collidableMeshes; }
+            buildConnectingBridge() { const group = new THREE.Group(); const floor = new THREE.Mesh(this.geos.beam, floorWoodMat); floor.scale.set(80, 5, this.chunkSize); floor.position.set(0, 0, -this.chunkSize/2); floor.receiveShadow = floor.castShadow = true; group.add(floor); this.collidableMeshes.push(floor); const railL = this.buildRailing(this.chunkSize); railL.position.set(-35, 0, -this.chunkSize/2); const railR = this.buildRailing(this.chunkSize); railR.position.set(35, 0, -this.chunkSize/2); group.add(railL, railR); const lantern = this.buildLantern(); lantern.position.set(0, 30, -this.chunkSize/2); group.add(lantern); return group; }
+
+            createMainLobby() {
+                const group = new THREE.Group(); const platformSize = 1050; group.add(this.buildTatamiFloor(platformSize, platformSize));
+                for(let i=0; i<4; i++) { const edgeBeam = new THREE.Mesh(this.geos.beam, darkWoodMat); edgeBeam.scale.set(platformSize + 20, 40, 40); edgeBeam.rotation.y = (Math.PI / 2) * i; const offset = platformSize / 2; if(i===0) edgeBeam.position.set(0, -20, -offset); else if(i===1) edgeBeam.position.set(offset, -20, 0); else if(i===2) edgeBeam.position.set(0, -20, offset); else edgeBeam.position.set(-offset, -20, 0); group.add(edgeBeam); this.collidableMeshes.push(edgeBeam); }
+                const railN = this.buildRailing(platformSize); railN.position.set(0, 0, -platformSize/2 + 10); const railS = this.buildRailing(platformSize); railS.position.set(0, 0, platformSize/2 - 10); const railE = this.buildRailing(platformSize); railE.rotation.y = Math.PI/2; railE.position.set(platformSize/2 - 10, 0, 0); const railW = this.buildRailing(platformSize); railW.rotation.y = Math.PI/2; railW.position.set(-platformSize/2 + 10, 0, 0); group.add(railN, railS, railE, railW);
+                const stage = this.createBiwaStage(350); stage.position.set(0, 0, 0); group.add(stage);
+                [[-265, -265], [265, -265], [-265, 265], [265, 265]].forEach(c => { const pillar = new THREE.Mesh(this.geos.beam, darkWoodMat); pillar.scale.set(60, 4000, 60); pillar.position.set(c[0], 0, c[1]); pillar.castShadow = pillar.receiveShadow = true; group.add(pillar); this.collidableMeshes.push(pillar); const bigLantern = this.buildLantern(); bigLantern.scale.set(3.5, 3.5, 3.5); bigLantern.position.set(c[0] > 0 ? c[0]-55 : c[0]+55, 180, c[1] > 0 ? c[1]-55 : c[1]+55); group.add(bigLantern); });
+                [{ rot: 0 }, { rot: Math.PI/2 }, { rot: Math.PI }, { rot: -Math.PI/2 }].forEach(dir => { const pathGrp = new THREE.Group(); const pathFloor = new THREE.Mesh(this.geos.beam, floorWoodMat); pathFloor.scale.set(160, 4, 255); pathFloor.position.set(0, 4, -397.5); pathFloor.receiveShadow = pathFloor.castShadow = true; pathGrp.add(pathFloor); for(let i=0; i<4; i++) { let lZ = -495 + (195) * (i / 3); let l1 = this.buildLantern(); l1.position.set(-105, 15, lZ); let l2 = this.buildLantern(); l2.position.set(105, 15, lZ); pathGrp.add(l1, l2); } pathGrp.rotation.y = dir.rot; group.add(pathGrp); });
+                [{ x: -350, z: -350, rot: Math.PI/4 }, { x: 350, z: -350, rot: -Math.PI/4 }, { x: -350, z: 350, rot: 3*Math.PI/4 }, { x: 350, z: 350, rot: -3*Math.PI/4 }].forEach(c => { const byobu = this.buildByobu(120); byobu.position.set(c.x, 0, c.z); byobu.rotation.y = c.rot; group.add(byobu); });
+                [{pos: [0, -505], rot: 0}, {pos: [0, 505], rot: Math.PI}, {pos: [-505, 0], rot: -Math.PI/2}, {pos: [505, 0], rot: Math.PI/2}].forEach(t => { const torii = this.buildGiantToriiGate(300, 280); torii.position.set(t.pos[0], 0, t.pos[1]); torii.rotation.y = t.rot; group.add(torii); });
+                this.worldGroup.add(group);
+            }
+            buildByobu(height) { const grp = new THREE.Group(), panelW = 90, offset = panelW * 0.85; const p1 = this.buildShojiWall(panelW, height); p1.position.set(-offset, height/2, 30); p1.rotation.y = Math.PI/6; const p2 = this.buildShojiWall(panelW, height); p2.position.set(0, height/2, 0); const p3 = this.buildShojiWall(panelW, height); p3.position.set(offset, height/2, 30); p3.rotation.y = -Math.PI/6; grp.add(p1, p2, p3); return grp; }
+            buildGiantToriiGate(width, height) { const group = new THREE.Group(), pillarT = 30; const pL = new THREE.Mesh(this.geos.beam, crimsonWoodMat); pL.scale.set(pillarT, height, pillarT); pL.position.set(-width/2, height/2, 0); pL.castShadow = true; const pR = pL.clone(); pR.position.set(width/2, height/2, 0); const kasagi = new THREE.Mesh(this.geos.beam, crimsonWoodMat); kasagi.scale.set(width + 120, pillarT*1.2, pillarT*1.5); kasagi.position.set(0, height - 10, 0); kasagi.castShadow = true; const nuki = new THREE.Mesh(this.geos.beam, crimsonWoodMat); nuki.scale.set(width + 80, pillarT*0.8, pillarT*0.8); nuki.position.set(0, height - 60, 0); nuki.castShadow = true; const blockL = new THREE.Mesh(this.geos.beam, crimsonWoodMat); blockL.scale.set(pillarT*2, pillarT*0.8, pillarT*1.2); blockL.position.set(-width/2, height - 35, 0); const blockR = blockL.clone(); blockR.position.set(width/2, height - 35, 0); group.add(pL, pR, kasagi, nuki, blockL, blockR); this.collidableMeshes.push(pL, pR, kasagi); const lanternL = this.buildLantern(); lanternL.scale.set(2.5, 2.5, 2.5); lanternL.position.set(-width/2 + 60, height - 120, 0); const lanternR = this.buildLantern(); lanternR.scale.set(2.5, 2.5, 2.5); lanternR.position.set(width/2 - 60, height - 120, 0); group.add(lanternL, lanternR); return group; }
+            buildLantern() { const group = new THREE.Group(); const core = new THREE.Mesh(this.geos.lanternCore, lanternCoreMat), frame = new THREE.Mesh(this.geos.lanternFrame, darkWoodMat); frame.rotation.y = Math.PI / 4; const cap = new THREE.Mesh(this.geos.lanternCap, darkWoodMat); cap.position.y = 10.5; cap.castShadow = true; const base = new THREE.Mesh(this.geos.lanternCap, darkWoodMat); base.position.y = -10.5; base.castShadow = true; group.add(core, frame, cap, base); return group; }
+            buildShojiWall(width, height) { const group = new THREE.Group(), paper = new THREE.Mesh(new THREE.PlaneGeometry(width, height), shojiPaperMat); group.add(paper); this.collidableMeshes.push(paper); const frameT = 8.0, kamoi = new THREE.Mesh(this.geos.beam, darkWoodMat); kamoi.scale.set(width, frameT + 4, frameT + 6); kamoi.position.y = height/2; kamoi.castShadow = kamoi.receiveShadow = true; const shikii = new THREE.Mesh(this.geos.beam, darkWoodMat); shikii.scale.set(width, frameT, frameT + 6); shikii.position.y = -height/2; shikii.castShadow = shikii.receiveShadow = true; const fL = new THREE.Mesh(this.geos.beam, darkWoodMat); fL.scale.set(frameT, height, frameT); fL.position.x = -width/2; fL.castShadow = fL.receiveShadow = true; const fR = new THREE.Mesh(this.geos.beam, darkWoodMat); fR.scale.set(frameT, height, frameT); fR.position.x = width/2; fR.castShadow = fR.receiveShadow = true; group.add(kamoi, shikii, fL, fR); const koshiHeight = height * 0.28, koshi = new THREE.Mesh(this.geos.beam, darkWoodMat); koshi.scale.set(width, koshiHeight, frameT + 2); koshi.position.y = -height/2 + koshiHeight/2; koshi.castShadow = koshi.receiveShadow = true; group.add(koshi); const latticeGridX = Math.floor(width / 20), latticeGridY = Math.floor((height - koshiHeight) / 15), latticeStartY = -height/2 + koshiHeight; for(let i=1; i<latticeGridX; i++) { const l = new THREE.Mesh(this.geos.beam, darkWoodMat); l.scale.set(2, height - koshiHeight, 3); l.position.set(-width/2 + (width/latticeGridX)*i, latticeStartY + (height - koshiHeight)/2, 2); group.add(l); } for(let i=1; i<latticeGridY; i++) { const l = new THREE.Mesh(this.geos.beam, darkWoodMat); l.scale.set(width, 2, 3); l.position.set(0, latticeStartY + ((height - koshiHeight)/latticeGridY)*i, 2); group.add(l); } const centerDivide = new THREE.Mesh(this.geos.beam, darkWoodMat); centerDivide.scale.set(8, height, 12); group.add(centerDivide); return group; }
+            buildRailing(length) { const group = new THREE.Group(); const topRail = new THREE.Mesh(this.geos.railTop, darkWoodMat); topRail.scale.set(length + 12, 1, 1); topRail.position.y = 30; topRail.castShadow = topRail.receiveShadow = true; const bottomRail = new THREE.Mesh(this.geos.railBot, darkWoodMat); bottomRail.scale.set(length, 1, 1); bottomRail.position.y = 8; bottomRail.castShadow = bottomRail.receiveShadow = true; const midRail = new THREE.Mesh(this.geos.railBot, darkWoodMat); midRail.scale.set(length, 1, 1); midRail.position.y = 18; midRail.castShadow = true; group.add(topRail, bottomRail, midRail); this.collidableMeshes.push(topRail); for(let i=0; i<=Math.floor(length / 30); i++) { const xPos = -length/2 + (length/Math.floor(length / 30))*i, post = new THREE.Mesh(this.geos.beam, darkWoodMat); post.scale.set(8, 36, 8); post.position.set(xPos, 14, 0); post.castShadow = post.receiveShadow = true; group.add(post); const giboshi = new THREE.Mesh(this.geos.giboshi, darkWoodMat); giboshi.position.set(xPos, 36, 0); giboshi.scale.set(1.2, 1.5, 1.2); group.add(giboshi); } return group; }
+            buildTatamiFloor(width, depth) { const group = new THREE.Group(); const woodBase = new THREE.Mesh(this.geos.woodBase, floorWoodMat); woodBase.scale.set(width, 1, depth); woodBase.receiveShadow = true; group.add(woodBase); this.collidableMeshes.push(woodBase); const tatami = new THREE.Mesh(this.geos.tatami, tatamiMat); tatami.scale.set(width - 20, 1, depth - 20); tatami.position.y = 2; tatami.receiveShadow = true; group.add(tatami); return group; }
+            createShojiRoom(size) { const group = new THREE.Group(), roomHeight = 140; group.add(this.buildTatamiFloor(size * 1.2, size * 1.2)); [[-size/2, -size/2], [size/2, -size/2], [-size/2, size/2], [size/2, size/2]].forEach(pos => { const pillar = new THREE.Mesh(this.geos.beam, darkWoodMat); pillar.scale.set(16, roomHeight + 20, 16); pillar.position.set(pos[0], roomHeight/2, pos[1]); pillar.castShadow = pillar.receiveShadow = true; group.add(pillar); }); const ceiling = new THREE.Mesh(this.geos.beam, floorWoodMat); ceiling.scale.set(size * 1.3, 20, size * 1.3); ceiling.position.y = roomHeight + 10; ceiling.castShadow = ceiling.receiveShadow = true; const roof = new THREE.Mesh(this.geos.roofPyramid, roofMat); roof.scale.set(size * 1.6, 70, size * 1.6); roof.rotation.y = Math.PI / 4; roof.position.y = roomHeight + 55; roof.castShadow = true; group.add(ceiling, roof); this.collidableMeshes.push(ceiling, roof); const wallN = this.buildShojiWall(size, roomHeight); wallN.position.set(0, roomHeight/2, -size/2); const wallE = this.buildShojiWall(size, roomHeight); wallE.rotation.y = Math.PI/2; wallE.position.set(size/2, roomHeight/2, 0); const wallW = this.buildShojiWall(size, roomHeight); wallW.rotation.y = Math.PI/2; wallW.position.set(-size/2, roomHeight/2, 0); group.add(wallN, wallE, wallW); return group; }
+            createPagodaTower(baseSize) { const group = new THREE.Group(); const levels = 3 + Math.floor(Math.random() * 3); const levelHeight = 160; let currentY = 0; for (let i = 0; i < levels; i++) { const levelScale = Math.pow(0.85, i); const currentSize = baseSize * levelScale; const coreSize = currentSize * 0.55; const levelGroup = new THREE.Group(); levelGroup.add(this.buildTatamiFloor(currentSize, currentSize)); const wallN = this.buildShojiWall(coreSize, levelHeight); wallN.position.set(0, levelHeight/2, -coreSize/2); const wallS = this.buildShojiWall(coreSize, levelHeight); wallS.position.set(0, levelHeight/2, coreSize/2); const wallE = this.buildShojiWall(coreSize, levelHeight); wallE.rotation.y = Math.PI/2; wallE.position.set(coreSize/2, levelHeight/2, 0); const wallW = this.buildShojiWall(coreSize, levelHeight); wallW.rotation.y = Math.PI/2; wallW.position.set(-coreSize/2, levelHeight/2, 0); levelGroup.add(wallN, wallS, wallE, wallW); const railN = this.buildRailing(currentSize); railN.position.set(0, 0, -currentSize/2 + 5); const railS = this.buildRailing(currentSize); railS.position.set(0, 0, currentSize/2 - 5); const railE = this.buildRailing(currentSize); railE.rotation.y = Math.PI/2; railE.position.set(currentSize/2 - 5, 0, 0); const railW = this.buildRailing(currentSize); railW.rotation.y = Math.PI/2; railW.position.set(-currentSize/2 + 5, 0, 0); levelGroup.add(railN, railS, railE, railW); [[-currentSize/2+10, -currentSize/2+10], [currentSize/2-10, -currentSize/2+10], [-currentSize/2+10, currentSize/2-10], [currentSize/2-10, currentSize/2-10]].forEach(pos => { const pillar = new THREE.Mesh(this.geos.beam, crimsonWoodMat); pillar.scale.set(16 * levelScale, levelHeight + 20, 16 * levelScale); pillar.position.set(pos[0], levelHeight/2, pos[1]); pillar.castShadow = pillar.receiveShadow = true; levelGroup.add(pillar); }); const roofHeight = 90 * levelScale, roofWidth = currentSize * 1.45; const roof = new THREE.Mesh(this.geos.roofPyramid, roofMat); roof.scale.set(roofWidth, roofHeight, roofWidth); roof.rotation.y = Math.PI / 4; roof.position.y = levelHeight + roofHeight/2; roof.castShadow = true; levelGroup.add(roof); this.collidableMeshes.push(roof); const ceiling = new THREE.Mesh(this.geos.beam, floorWoodMat); ceiling.scale.set(coreSize, 5, coreSize); ceiling.position.y = levelHeight; levelGroup.add(ceiling); this.collidableMeshes.push(ceiling); [[-roofWidth/2 + 20, -roofWidth/2 + 20], [roofWidth/2 - 20, -roofWidth/2 + 20], [-roofWidth/2 + 20, roofWidth/2 - 20], [roofWidth/2 - 20, roofWidth/2 - 20]].forEach(pos => { const lantern = this.buildLantern(); lantern.position.set(pos[0], levelHeight + 5, pos[1]); levelGroup.add(lantern); }); levelGroup.position.y = currentY; group.add(levelGroup); currentY += levelHeight + roofHeight - 10; } const spire = new THREE.Mesh(this.geos.beam, darkWoodMat); spire.scale.set(12, 250, 12); spire.position.y = currentY + 105; spire.castShadow = true; group.add(spire); group.position.y = -currentY / 2; return group; }
+            createGrandPlatform(size) { const group = new THREE.Group(); group.add(this.buildTatamiFloor(size, size)); for(let i=0; i<4; i++) { const edgeBeam = new THREE.Mesh(this.geos.beam, darkWoodMat); edgeBeam.scale.set(size + 20, 20, 20); edgeBeam.rotation.y = (Math.PI / 2) * i; const offset = size / 2; if(i===0) edgeBeam.position.set(0, -10, -offset); else if(i===1) edgeBeam.position.set(offset, -10, 0); else if(i===2) edgeBeam.position.set(0, -10, offset); else edgeBeam.position.set(-offset, -10, 0); group.add(edgeBeam); } const railN = this.buildRailing(size); railN.position.set(0, 0, -size/2 + 5); const railS = this.buildRailing(size); railS.position.set(0, 0, size/2 - 5); const railE = this.buildRailing(size); railE.rotation.y = Math.PI/2; railE.position.set(size/2 - 5, 0, 0); const railW = this.buildRailing(size); railW.rotation.y = Math.PI/2; railW.position.set(-size/2 + 5, 0, 0); group.add(railN, railS, railE, railW); return group; }
+            createGrandStairs(size) { const group = new THREE.Group(), steps = 15, stepH = size / steps, stepD = size / steps, width = size * 0.8; for(let i=0; i<steps; i++) { const step = new THREE.Mesh(this.geos.beam, floorWoodMat); step.scale.set(width, stepH * 1.2, stepD * 1.5); step.position.set(0, stepH*i - size/2, stepD*i - size/2); step.castShadow = step.receiveShadow = true; group.add(step); this.collidableMeshes.push(step); } const baseLength = Math.sqrt(size*size + size*size); const stringerMat = new THREE.Mesh(this.geos.beam, darkWoodMat); stringerMat.scale.set(24, 60, baseLength + 30); stringerMat.rotation.x = -Math.PI / 4; stringerMat.position.set(-width/2 - 5, -15, 0); stringerMat.castShadow = stringerMat.receiveShadow = true; const stringerRight = stringerMat.clone(); stringerRight.position.set(width/2 + 5, -15, 0); const handrail = new THREE.Mesh(this.geos.beam, darkWoodMat); handrail.scale.set(14, 14, baseLength + 30); handrail.rotation.x = -Math.PI / 4; handrail.position.set(-width/2 - 5, 25, 0); handrail.castShadow = true; const handrailRight = handrail.clone(); handrailRight.position.set(width/2 + 5, 25, 0); for(let i=0; i<=5; i++) { const t = i / 5, yPos = -size/2 + size * t, zPos = -size/2 + size * t; const postL = new THREE.Mesh(this.geos.beam, darkWoodMat); postL.scale.set(10, 60, 10); postL.position.set(-width/2 - 5, yPos + 10, zPos); postL.castShadow = true; const postR = postL.clone(); postR.position.set(width/2 + 5, yPos + 10, zPos); const giboshiL = new THREE.Mesh(this.geos.giboshi, darkWoodMat); giboshiL.position.set(-width/2 - 5, yPos + 54, zPos); const giboshiR = new THREE.Mesh(this.geos.giboshi, darkWoodMat); giboshiR.position.set(width/2 + 5, yPos + 54, zPos); group.add(postL, postR, giboshiL, giboshiR); } const baseCenterMat = new THREE.Mesh(this.geos.beam, darkWoodMat); baseCenterMat.scale.set(width - 20, 40, baseLength); baseCenterMat.rotation.x = -Math.PI / 4; baseCenterMat.position.set(0, -25, 0); group.add(stringerMat, stringerRight, handrail, handrailRight, baseCenterMat); this.collidableMeshes.push(stringerMat, stringerRight, baseCenterMat); return group; }
+            createLongCorridor(length) { const group = new THREE.Group(), width = 260, height = 150; const floor = new THREE.Mesh(this.geos.beam, floorWoodMat); floor.scale.set(width, 40, length); floor.position.y = -height/2; floor.castShadow = floor.receiveShadow = true; group.add(floor); this.collidableMeshes.push(floor); const ceiling = new THREE.Mesh(this.geos.beam, darkWoodMat); ceiling.scale.set(width, 40, length); ceiling.position.y = height/2; ceiling.castShadow = ceiling.receiveShadow = true; group.add(ceiling); this.collidableMeshes.push(ceiling); for(let i=0; i<=Math.floor(length / 350); i++) { const zPos = -length/2 + (length/Math.floor(length / 350))*i, pL = new THREE.Mesh(this.geos.beam, darkWoodMat); pL.scale.set(16, height, 16); pL.position.set(-width/2 + 8, 0, zPos); pL.castShadow = true; const pR = new THREE.Mesh(this.geos.beam, darkWoodMat); pR.scale.set(16, height, 16); pR.position.set(width/2 - 8, 0, zPos); pR.castShadow = true; const crossBeam = new THREE.Mesh(this.geos.beam, darkWoodMat); crossBeam.scale.set(width + 40, 16, 16); crossBeam.position.set(0, height/2 - 16, zPos); crossBeam.castShadow = true; group.add(pL, pR, crossBeam); if (i % 2 === 0) { const lantern = this.buildLantern(); lantern.position.set(0, height/2 - 40, zPos); group.add(lantern); } } if (Math.random() > 0.4) { const wallL = new THREE.Mesh(this.geos.beam, shojiPaperMat); wallL.scale.set(10, height, length); wallL.position.set(-width/2 + 5, 0, 0); group.add(wallL); this.collidableMeshes.push(wallL); } else { const topRail = new THREE.Mesh(this.geos.beam, crimsonWoodMat); topRail.scale.set(10, 12, length); topRail.position.set(-width/2 + 5, -height/2 + 30, 0); topRail.castShadow = topRail.receiveShadow = true; group.add(topRail); this.collidableMeshes.push(topRail); } if (Math.random() > 0.4) { const wallR = new THREE.Mesh(this.geos.beam, shojiPaperMat); wallR.scale.set(10, height, length); wallR.position.set(width/2 - 5, 0, 0); group.add(wallR); this.collidableMeshes.push(wallR); } else { const topRail = new THREE.Mesh(this.geos.beam, crimsonWoodMat); topRail.scale.set(10, 12, length); topRail.position.set(width/2 - 5, -height/2 + 30, 0); topRail.castShadow = topRail.receiveShadow = true; group.add(topRail); this.collidableMeshes.push(topRail); } return group; }
+            initMassiveArchitecture() { const geos = { tCore: new THREE.BoxGeometry(320, 2360, 320), tPillar: new THREE.BoxGeometry(30, 2400, 30), tTrim: new THREE.BoxGeometry(450, 40, 450), tCap: new THREE.BoxGeometry(450, 40, 450), bxCore: new THREE.BoxGeometry(2360, 320, 320), bxPillar: new THREE.BoxGeometry(2400, 30, 30), bxTrim: new THREE.BoxGeometry(40, 450, 450), bxCap: new THREE.BoxGeometry(40, 450, 450), bzCore: new THREE.BoxGeometry(320, 320, 2360), bzPillar: new THREE.BoxGeometry(30, 30, 2400), bzTrim: new THREE.BoxGeometry(450, 450, 40), bzCap: new THREE.BoxGeometry(450, 450, 40) }; const NUM_T = 400, NUM_BX = 400, NUM_BZ = 400; this.IMs = { tCore: new THREE.InstancedMesh(geos.tCore, shojiPaperMat, NUM_T), tPillar: new THREE.InstancedMesh(geos.tPillar, darkWoodMat, NUM_T * 4), tTrim: new THREE.InstancedMesh(geos.tTrim, roofMat, NUM_T * 11), tCap: new THREE.InstancedMesh(geos.tCap, roofMat, NUM_T * 2), bxCore: new THREE.InstancedMesh(geos.bxCore, shojiPaperMat, NUM_BX), bxPillar: new THREE.InstancedMesh(geos.bxPillar, darkWoodMat, NUM_BX * 4), bxTrim: new THREE.InstancedMesh(geos.bxTrim, roofMat, NUM_BX * 11), bxCap: new THREE.InstancedMesh(geos.bxCap, roofMat, NUM_BX * 2), bzCore: new THREE.InstancedMesh(geos.bzCore, shojiPaperMat, NUM_BZ), bzPillar: new THREE.InstancedMesh(geos.bzPillar, darkWoodMat, NUM_BZ * 4), bzTrim: new THREE.InstancedMesh(geos.bzTrim, roofMat, NUM_BZ * 11), bzCap: new THREE.InstancedMesh(geos.bzCap, roofMat, NUM_BZ * 2) }; for(let key in this.IMs) this.IMs[key].receiveShadow = true; const setupCol = (im, items, list) => { im.userData = { itemsPerBuilding: items, buildingData: list }; this.worldGroup.add(im); this.collidableMeshes.push(im); }; this.towers = []; this.bridgesX = []; this.bridgesZ = []; const createBuildingData = (typeAxis) => { let px = (Math.floor(Math.random() * 40) - 20) * 800, py = (Math.floor(Math.random() * 40) - 20) * 800, pz = (Math.floor(Math.random() * 40) - 20) * 800; if (Math.abs(px) < 1600 && Math.abs(pz) < 1600) px += (px >= 0 ? 1600 : -1600); return { pos: new THREE.Vector3(px, py, pz), moveAxis: typeAxis, baseSpeed: 50 + Math.random() * 100, velocity: new THREE.Vector3(0,0,0), dir: 1 }; }; for(let i=0; i<NUM_T; i++) { let b = createBuildingData(new THREE.Vector3(0,1,0)); if(b.pos.length() < 3000) b.pos.x += 3500; this.towers.push(b); this.allBuildings.push(b); } for(let i=0; i<NUM_BX; i++) { let b = createBuildingData(new THREE.Vector3(1,0,0)); if(b.pos.length() < 3000) b.pos.y += 3500; this.bridgesX.push(b); this.allBuildings.push(b); } for(let i=0; i<NUM_BZ; i++) { let b = createBuildingData(new THREE.Vector3(0,0,1)); if(b.pos.length() < 3000) b.pos.z += 3500; this.bridgesZ.push(b); this.allBuildings.push(b); } setupCol(this.IMs.tCore, 1, this.towers); setupCol(this.IMs.tPillar, 4, this.towers); setupCol(this.IMs.tTrim, 11, this.towers); setupCol(this.IMs.tCap, 2, this.towers); setupCol(this.IMs.bxCore, 1, this.bridgesX); setupCol(this.IMs.bxPillar, 4, this.bridgesX); setupCol(this.IMs.bxTrim, 11, this.bridgesX); setupCol(this.IMs.bxCap, 2, this.bridgesX); setupCol(this.IMs.bzCore, 1, this.bridgesZ); setupCol(this.IMs.bzPillar, 4, this.bridgesZ); setupCol(this.IMs.bzTrim, 11, this.bridgesZ); setupCol(this.IMs.bzCap, 2, this.bridgesZ); this.offsets = { t: { p: [new THREE.Vector3(160,0,160), new THREE.Vector3(-160,0,160), new THREE.Vector3(160,0,-160), new THREE.Vector3(-160,0,-160)], c: [new THREE.Vector3(0, 1180, 0), new THREE.Vector3(0, -1180, 0)], tr: Array.from({length:11}, (_, i) => new THREE.Vector3(0, -1000 + i*200, 0)) }, bx: { p: [new THREE.Vector3(0,160,160), new THREE.Vector3(0,-160,160), new THREE.Vector3(0,160,-160), new THREE.Vector3(0,-160,-160)], c: [new THREE.Vector3(1180, 0, 0), new THREE.Vector3(-1180, 0, 0)], tr: Array.from({length:11}, (_, i) => new THREE.Vector3(-1000 + i*200, 0, 0)) }, bz: { p: [new THREE.Vector3(160,160,0), new THREE.Vector3(-160,160,0), new THREE.Vector3(160,-160,0), new THREE.Vector3(-160,-160,0)], c: [new THREE.Vector3(0, 0, 1180), new THREE.Vector3(0, 0, -1180)], tr: Array.from({length:11}, (_, i) => new THREE.Vector3(0, 0, -1000 + i*200)) } }; this.updateAllMatrices(); }
+            updateAllMatrices() { const updateGroup = (list, coreIM, pillarIM, trimIM, capIM, off) => { let pId = 0, trId = 0, cId = 0; for (let i=0; i<list.length; i++) { let b = list[i]; _m1.compose(b.pos, _q1, _s1); coreIM.setMatrixAt(i, _m1); for(let j=0; j<4; j++) { _v1.copy(b.pos).add(off.p[j]); _m1.compose(_v1, _q1, _s1); pillarIM.setMatrixAt(pId++, _m1); } for(let j=0; j<11; j++) { _v1.copy(b.pos).add(off.tr[j]); _m1.compose(_v1, _q1, _s1); trimIM.setMatrixAt(trId++, _m1); } for(let j=0; j<2; j++) { _v1.copy(b.pos).add(off.c[j]); _m1.compose(_v1, _q1, _s1); capIM.setMatrixAt(cId++, _m1); } } coreIM.instanceMatrix.needsUpdate = pillarIM.instanceMatrix.needsUpdate = trimIM.instanceMatrix.needsUpdate = capIM.instanceMatrix.needsUpdate = true; }; updateGroup(this.towers, this.IMs.tCore, this.IMs.tPillar, this.IMs.tTrim, this.IMs.tCap, this.offsets.t); updateGroup(this.bridgesX, this.IMs.bxCore, this.IMs.bxPillar, this.IMs.bxTrim, this.IMs.bxCap, this.offsets.bx); updateGroup(this.bridgesZ, this.IMs.bzCore, this.IMs.bzPillar, this.IMs.bzTrim, this.IMs.bzCap, this.offsets.bz); }
+            initConcentratedCorridors(count) { for(let i=0; i<count; i++) { const building = this.createLongCorridor(2000 + Math.random() * 2500); const moveAxisVec = _axes[Math.floor(Math.random() * 3)]; if (moveAxisVec.x === 1) building.rotation.y = Math.PI / 2; else if (moveAxisVec.y === 1) building.rotation.x = Math.PI / 2; if (Math.random() > 0.5) building.rotateOnAxis(new THREE.Vector3(0,0,1), Math.PI / 2); building.userData = { moveAxis: moveAxisVec, speed: 30 + Math.random() * 80, dir: Math.random() > 0.5 ? 1 : -1, velocity: new THREE.Vector3() }; let px = (Math.random() - 0.5) * 6000, py = (Math.random() - 0.5) * 6000, pz = (Math.random() - 0.5) * 6000; if (Math.abs(px) < 1200 && Math.abs(pz) < 1200) px += (px >= 0 ? 1500 : -1500); building.position.set(px, py, pz); this.dynamicCorridors.push(building); this.worldGroup.add(building); } }
+            createBiwaStage(size) { const group = new THREE.Group(), stageSize = size * 1.5; group.add(this.buildTatamiFloor(stageSize, stageSize)); const screenHeight = 250, screenWidth = stageSize * 0.8, backScreen = this.buildShojiWall(screenWidth, screenHeight); backScreen.position.set(0, screenHeight/2, -stageSize/2 + 20); group.add(backScreen); const pillarT = 26, pL = new THREE.Mesh(this.geos.beam, crimsonWoodMat); pL.scale.set(pillarT, screenHeight + 50, pillarT); pL.position.set(-screenWidth/2, (screenHeight+50)/2, -stageSize/2 + 20); pL.castShadow = true; const pR = pL.clone(); pR.position.set(screenWidth/2, (screenHeight+50)/2, -stageSize/2 + 20); const kasagi = new THREE.Mesh(this.geos.beam, crimsonWoodMat); kasagi.scale.set(screenWidth + pillarT*4, pillarT*1.2, pillarT*1.5); kasagi.position.set(0, screenHeight + 35, -stageSize/2 + 20); kasagi.castShadow = true; const nuki = new THREE.Mesh(this.geos.beam, crimsonWoodMat); nuki.scale.set(screenWidth + pillarT*3, pillarT*0.8, pillarT*0.8); nuki.position.set(0, screenHeight - 5, -stageSize/2 + 20); nuki.castShadow = true; group.add(pL, pR, kasagi, nuki); this.collidableMeshes.push(pL, pR, kasagi); for(let i=0; i<3; i++) { const lanternL = this.buildLantern(); lanternL.position.set(-screenWidth/2 - 60, screenHeight - 20 - i*70, -stageSize/2 + 20); const lanternR = this.buildLantern(); lanternR.position.set(screenWidth/2 + 60, screenHeight - 20 - i*70, -stageSize/2 + 20); group.add(lanternL, lanternR); } const stairs = this.createGrandStairs(size * 0.8); stairs.rotation.y = Math.PI; stairs.position.set(0, -size*0.4, stageSize/2 + size*0.4); group.add(stairs); return group; }
+            createEscherStairs(size) { const group = new THREE.Group(); group.add(this.createGrandStairs(size * 1.5)); const stairs2 = this.createGrandStairs(size * 1.5); stairs2.rotation.set(Math.PI/2, Math.PI/2, 0); stairs2.position.set(size/2, size/2, 0); group.add(stairs2); if (Math.random() > 0.5) { const stairs3 = this.createGrandStairs(size); stairs3.rotation.set(Math.PI, 0, Math.PI/4); stairs3.position.set(-size/2, size, 0); group.add(stairs3); } const platform = this.buildTatamiFloor(size*0.6, size*0.6); platform.position.set(0, size*0.75, size*0.75); group.add(platform); return group; }
+            createBuildingNode(forceType = null) { const group = new THREE.Group(); group.rotation.set(Math.floor(Math.random() * 4) * Math.PI / 2, Math.floor(Math.random() * 4) * Math.PI / 2, Math.floor(Math.random() * 4) * Math.PI / 2); const rand = forceType ? (forceType === 'platform' ? 0.05 : 0.9) : Math.random(); let coreArch; if (rand < 0.1) coreArch = this.createBiwaStage(this.chunkSize * 1.2); else if (rand < 0.25) coreArch = this.createPagodaTower(this.chunkSize * 1.2); else if (rand < 0.4) coreArch = this.createEscherStairs(this.chunkSize); else if (rand < 0.6) coreArch = this.createShojiRoom(this.chunkSize * 1.5); else if (rand < 0.8) coreArch = this.createGrandPlatform(this.chunkSize * 1.5); else coreArch = this.createGrandStairs(this.chunkSize * 1.5); group.add(coreArch); if (Math.random() > 0.2) { const usedDirs = new Set(); for(let i=0; i<1 + Math.floor(Math.random() * 3); i++) { let rotY = Math.floor(Math.random() * 4) * (Math.PI/2); if(usedDirs.has(rotY)) continue; usedDirs.add(rotY); const bridge = this.buildConnectingBridge(); bridge.rotation.y = rotY; group.add(bridge); } } if (!forceType && Math.random() > 0.3) { for (let i = 0; i < 1 + Math.floor(Math.random() * 3); i++) { let attachedObj; const attachType = Math.random(); if (attachType < 0.4) attachedObj = this.createShojiRoom(this.chunkSize * 0.8); else if (attachType < 0.8) attachedObj = this.createGrandStairs(this.chunkSize * 0.9); else { attachedObj = this.buildTatamiFloor(this.chunkSize, this.chunkSize); attachedObj.add(this.buildRailing(this.chunkSize).translateZ(-this.chunkSize/2)); } attachedObj.rotation.set((Math.floor(Math.random() * 4)) * Math.PI / 2, (Math.floor(Math.random() * 4)) * Math.PI / 2, (Math.floor(Math.random() * 4)) * Math.PI / 2); const offsetDist = this.chunkSize * (0.8 + Math.random() * 0.7), axis = Math.floor(Math.random() * 3); if (axis === 0) attachedObj.position.x = (Math.random() > 0.5 ? 1 : -1) * offsetDist; else if (axis === 1) attachedObj.position.y = (Math.random() > 0.5 ? 1 : -1) * offsetDist; else attachedObj.position.z = (Math.random() > 0.5 ? 1 : -1) * offsetDist; group.add(attachedObj); } } group.userData = { velocity: new THREE.Vector3(0,0,0) }; return group; }
+            createGridModule(x, y, z, forceType = null) { const node = this.createBuildingNode(forceType); node.userData.targetPos = new THREE.Vector3(x * this.chunkSize, y * this.chunkSize, z * this.chunkSize); node.position.copy(node.userData.targetPos); this.worldGroup.add(node); node.updateMatrixWorld(true); return node; }
+            removeChunk(key) { if (!this.activeChunks.has(key)) return; const chunk = this.activeChunks.get(key); this.worldGroup.remove(chunk); this.activeChunks.delete(key); chunk.traverse((child) => { if (child.isMesh) { const idx = this.collidableMeshes.indexOf(child); if (idx > -1) { this.collidableMeshes[idx] = this.collidableMeshes[this.collidableMeshes.length - 1]; this.collidableMeshes.pop(); } } }); }
+            initDustParticles() { const pPos = new Float32Array(12000 * 3); for(let i=0; i<12000; i++) { pPos[i*3] = (Math.random() - 0.5) * 8000; pPos[i*3+1] = (Math.random() - 0.5) * 8000; pPos[i*3+2] = (Math.random() - 0.5) * 8000; } const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); this.dustSystem = new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0xffaa55, size: 3.5, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false })); this.worldGroup.add(this.dustSystem); }
+
+            update(playerWrapper, rawDelta) {
+                const delta = rawDelta * timeScale;
+                this.frameId++; this.worldGroup.updateMatrixWorld(true);
+                
+                playerWrapper.getWorldPosition(_worldPos); 
+                const localPlayerPos = this.worldGroup.worldToLocal(_v1.copy(_worldPos));
+                this.dustSystem.position.copy(localPlayerPos); this.dustSystem.rotation.y += delta * 0.02;
+
+                const localDownDir = _downDir.set(0, -1, 0).applyQuaternion(playerWrapper.quaternion).normalize().transformDirection(this.worldGroup.matrixWorld.clone().invert()).normalize();
+                const catchPos = localPlayerPos.clone().add(localDownDir.clone().multiplyScalar(this.chunkSize * 2));
+                const catchCx = Math.floor(catchPos.x / this.chunkSize), catchCy = Math.floor(catchPos.y / this.chunkSize), catchCz = Math.floor(catchPos.z / this.chunkSize);
+                const cx = Math.floor(localPlayerPos.x / this.chunkSize), cy = Math.floor(localPlayerPos.y / this.chunkSize), cz = Math.floor(localPlayerPos.z / this.chunkSize);
+
+                for (let x = -this.viewDistance; x <= this.viewDistance; x++) { for (let y = -this.viewDistance; y <= this.viewDistance; y++) { for (let z = -this.viewDistance; z <= this.viewDistance; z++) { const gridX = cx + x, gridY = cy + y, gridZ = cz + z; if ((Math.abs(gridX) <= 1 && Math.abs(gridY) <= 1 && Math.abs(gridZ) <= 1) || (gridY > 1 && Math.abs(gridX) <= 1 && Math.abs(gridZ) <= 1)) continue; const isCatchPoint = (gridX === catchCx && gridY === catchCy && gridZ === catchCz); if (!isCatchPoint && x*x + y*y + z*z > this.viewDistance * this.viewDistance * 1.2) continue; if (Math.random() > 0.3 && !isCatchPoint) continue; const key = `${gridX},${gridY},${gridZ}`; if (!this.activeChunks.has(key)) this.activeChunks.set(key, this.createGridModule(gridX, gridY, gridZ, isCatchPoint ? 'platform' : null)); this.activeChunks.get(key).userData.lastFrame = this.frameId; } } }
+                for (let [key, chunk] of this.activeChunks.entries()) { if (chunk.userData.lastFrame !== this.frameId) this.removeChunk(key); else chunk.position.lerp(chunk.userData.targetPos, 0.08); }
+
+                this.dynamicCorridors.forEach(b => { b.userData.velocity.copy(b.userData.moveAxis).multiplyScalar(b.userData.speed * b.userData.dir); b.position.add(_v2.copy(b.userData.velocity).multiplyScalar(delta)); if (b.position.distanceTo(localPlayerPos) > 3800) { const axisKey = b.userData.moveAxis.x ? 'x' : (b.userData.moveAxis.y ? 'y' : 'z'); b.position[axisKey] = localPlayerPos[axisKey] - (b.userData.dir * 3700); if (axisKey !== 'x') b.position.x = localPlayerPos.x + (Math.random()-0.5) * 3500; if (axisKey !== 'y') b.position.y = localPlayerPos.y + (Math.random()-0.5) * 3500; if (axisKey !== 'z') b.position.z = localPlayerPos.z + (Math.random()-0.5) * 3500; } });
+
+                if(player) {
+                    this.waveTimer -= delta;
+                    if (this.waveState === this.WAVE_IDLE) {
+                        this.uiSystemTimer.innerText = `下波空間重組: ${Math.max(0, this.waveTimer).toFixed(1)}s`;
+                        if (this.waveTimer <= 0) { this.waveState = this.WAVE_RUMBLE; this.waveTimer = 4.0; this.uiAlert.innerText = '⚠️ 空間震動徵兆 ⚠️'; this.uiAlert.style.display = 'block'; this.uiAlert.classList.add('pulse'); this.dmgOverlay.style.opacity = '0.4'; }
+                    } else if (this.waveState === this.WAVE_RUMBLE) {
+                        this.uiSystemTimer.innerText = `警告：結構即將崩壞`; player.addCameraShake((4.0 - this.waveTimer) * 3.0); this.dmgOverlay.style.opacity = (0.2 + Math.random()*0.3).toString();
+                        if (this.waveTimer <= 0) { this.waveState = this.WAVE_DASH; this.waveTimer = 7.0; this.uiAlert.innerText = '血鬼術・百鬼夜行'; this.uiAlert.classList.remove('pulse'); this.dmgOverlay.style.opacity = '0.1'; for (let b of this.allBuildings) { b.dir = Math.random() > 0.5 ? 1 : -1; b.currentSpeed = b.baseSpeed * (1.2 + Math.random() * 0.8); } sfx.playBuildingRumble(); } 
+                    } else if (this.waveState === this.WAVE_DASH) {
+                        this.uiSystemTimer.innerText = `空間大挪移中...`; let needsUpdate = false, ease = 1 - Math.pow(1 - (this.waveTimer / 7.0), 3);
+                        if (this.waveTimer < 1.0) this.uiAlert.style.opacity = this.waveTimer; 
+                        for (let b of this.allBuildings) { b.velocity.copy(b.moveAxis).multiplyScalar(b.currentSpeed * b.dir * Math.max(ease, 0.05)); b.pos.add(_v2.copy(b.velocity).multiplyScalar(delta)); needsUpdate = true; if (b.pos.distanceTo(localPlayerPos) > 18000) { const axisKey = b.moveAxis.x ? 'x' : (b.moveAxis.y ? 'y' : 'z'); b.pos[axisKey] = localPlayerPos[axisKey] - (b.dir * 17000); if (axisKey !== 'x') b.pos.x = localPlayerPos.x + (Math.random()-0.5)*25000; if (axisKey !== 'y') b.pos.y = localPlayerPos.y + (Math.random()-0.5)*25000; if (axisKey !== 'z') b.pos.z = localPlayerPos.z + (Math.random()-0.5)*25000; b.pos.x = Math.round(b.pos.x/800)*800; b.pos.y = Math.round(b.pos.y/800)*800; b.pos.z = Math.round(b.pos.z/800)*800; } }
+                        if (needsUpdate) this.updateAllMatrices();
+                        if (this.waveTimer <= 0) { this.waveState = this.WAVE_IDLE; this.waveTimer = 15.0 + Math.random() * 10.0; this.uiAlert.style.display = 'none'; this.uiAlert.style.opacity = '1'; this.dmgOverlay.style.opacity = '0'; for (let b of this.allBuildings) b.velocity.set(0,0,0); this.updateAllMatrices(); }
+                    }
+                    
+                    if (this.waveState === this.WAVE_IDLE && player.isFlying) { let needsUpdate = false; for (let b of this.allBuildings) { if (b.pos.distanceTo(localPlayerPos) > 20000) { b.pos.x = localPlayerPos.x + (Math.random()-0.5)*25000; b.pos.y = localPlayerPos.y + (Math.random()-0.5)*25000; b.pos.z = localPlayerPos.z + (Math.random()-0.5)*25000; b.pos.x = Math.round(b.pos.x/800)*800; b.pos.y = Math.round(b.pos.y/800)*800; b.pos.z = Math.round(b.pos.z/800)*800; needsUpdate = true; } } if (needsUpdate) this.updateAllMatrices(); }
+                }
+            }
+        }
+
+        function initThreeScene() {
+            scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x010005, 0.00032); scene.background = new THREE.Color(0x010002); 
+            camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.1, 40000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" }); 
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.NoToneMapping; 
+            renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+            [texDarkWood, texFloorWood, texCrimson, texPaper, texTatami, texRoof].forEach(tex => { tex.anisotropy = maxAnisotropy; });
+            document.body.appendChild(renderer.domElement);
+
+            composer = new EffectComposer(renderer); 
+            composer.addPass(new RenderPass(scene, camera)); 
+            
+            composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.5, 0.4));
+
+            outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
+            outlinePass.edgeStrength = 4.0;
+            outlinePass.edgeGlow = 0.0;
+            outlinePass.edgeThickness = 1.0;
+            outlinePass.visibleEdgeColor.set('#000000');
+            outlinePass.hiddenEdgeColor.set('#000000');
+            composer.addPass(outlinePass);
+
+            const PosterizeShader = {
+                uniforms: {
+                    'tDiffuse': { value: null },
+                    'bins': { value: 12.0 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D tDiffuse;
+                    uniform float bins;
+                    varying vec2 vUv;
+                    void main() {
+                        vec4 texColor = texture2D(tDiffuse, vUv);
+                        texColor.rgb = floor(texColor.rgb * bins) / bins;
+                        gl_FragColor = texColor;
+                    }
+                `
+            };
+            const posterizePass = new ShaderPass(PosterizeShader);
+            composer.addPass(posterizePass);
+
+            scene.add(new THREE.HemisphereLight(0x0a0a1a, 0x331111, 0.8));
+            bloodMoonLight = new THREE.DirectionalLight(0xff2200, 2.5); bloodMoonLight.castShadow = true;
+            bloodMoonLight.shadow.mapSize.width = 2048; bloodMoonLight.shadow.mapSize.height = 2048; bloodMoonLight.shadow.camera.near = 500; bloodMoonLight.shadow.camera.far = 12000; bloodMoonLight.shadow.camera.left = -4000; bloodMoonLight.shadow.camera.right = 4000; bloodMoonLight.shadow.camera.top = 4000; bloodMoonLight.shadow.camera.bottom = -4000; bloodMoonLight.shadow.bias = -0.001;
+            scene.add(bloodMoonLight); scene.add(bloodMoonLight.target);
+
+            window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); });
+        }
+
+        // --- 全局畫面渲染迴圈 (加入 isPaused 凍結保護) ---
+        function animate(time) {
+            requestAnimationFrame(animate); 
+            const delta = Math.min(clock.getDelta(), 0.05); 
+            
+            // 只有在非暫停狀態才進行物理、動畫、特效的推進
+            if (!isPaused) {
+                tweenManager.update(time);
+                
+                if (isPreviewMode && previewTanjiro) {
+                    const targetRotX = -0.2 - mouseY;
+                    const targetRotY = -mouseX;
+                    camera.rotation.y += (targetRotY - camera.rotation.y) * 0.05;
+                    camera.rotation.x += (targetRotX - camera.rotation.x) * 0.05;
+                    
+                    previewTanjiro.model.position.y = -2 + Math.sin(time * 0.002) * 1.5;
+                    
+                    if(castleSystem) castleSystem.update(camera, delta); 
+                    
+                    camera.getWorldPosition(_worldPos); 
+                    bloodMoonLight.position.set(_worldPos.x + 3000, _worldPos.y + 4000, _worldPos.z + 2000); 
+                    bloodMoonLight.target.position.copy(_worldPos);
+                }
+                else if (player && castleSystem && !isPreviewMode) {
+                    castleSystem.update(player.wrapper, delta); 
+                    player.update(delta);
+                    player.cameraMount.getWorldPosition(_worldPos); 
+                    bloodMoonLight.position.set(_worldPos.x + 3000, _worldPos.y + 4000, _worldPos.z + 2000); 
+                    bloodMoonLight.target.position.copy(_worldPos);
+                }
+            }
+            if (composer) composer.render();
+        }
+
+        window.onload = () => {
+            window.updateSettingsUI(); // 初始化設定選單文字與顏色
+            performLoading();
+        };
+    </script>
+</body>
+</html>
